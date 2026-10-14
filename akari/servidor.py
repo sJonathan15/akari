@@ -10,17 +10,19 @@ POST /api/ajustes         {"idioma"?, "avisos"?}
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
+import os
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import PUERTO, VERSION
+from . import PUERTO, VERSION, demo
 from .comun import CONFIG, IDIOMA, RAIZ, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
 from .ia import MonitorIA
 
+DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript",
          ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json",
@@ -41,10 +43,10 @@ class Servicio:
             self.cond.notify_all()
 
     def estado(self):
-        return {
-            "version": VERSION, "idioma": IDIOMA, "ahora": time.time(),
-            "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-        }
+        base = {"version": VERSION, "idioma": IDIOMA, "ahora": time.time()}
+        if DEMO:
+            return {**base, **demo.estado(), "demo": True}
+        return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado}
 
     def _bucle(self, paso, intervalo):
         while True:

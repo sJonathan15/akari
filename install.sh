@@ -288,7 +288,7 @@ Name=akari
 Comment=AI usage, device batteries and AI skills
 Comment[es]=Uso de la IA, batería de tus periféricos y habilidades
 Exec=$DESTINO/bin/akari abrir
-Icon=$DESTINO/iconos/akari.svg
+Icon=$DESTINO/iconos/akari.png
 Categories=Utility;Monitor;
 EOF
 

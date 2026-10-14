@@ -11,7 +11,7 @@ RAIZ = Path(__file__).resolve().parent.parent          # carpeta del repositorio
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "akari"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "akari"
 DATOS = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local" / "share")) / "akari"
-ICONO = RAIZ / "iconos" / "akari.svg"
+ICONO = RAIZ / "iconos" / "akari.png"
 
 
 # ---------------------------------------------------------------- archivos

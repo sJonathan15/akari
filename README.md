@@ -1,20 +1,175 @@
-# akari 明かり
+<p align="center">
+  <img src="docs/logo.png" alt="akari" width="420">
+</p>
 
-> 🚧 **Work in progress / En desarrollo** — first release coming soon.
+<p align="center">
+  <b>Floating desktop capsules for Linux: your AI usage, your devices and your AI skills — at a glance.</b><br>
+  <a href="#español">Español</a> · <a href="#install">Install</a> · <a href="#privacy">Privacy</a>
+</p>
 
-**English** · Small floating capsules for the Linux desktop that show, at a glance:
+<p align="center">
+  <img src="docs/capsules-en.png" alt="akari capsules: devices with 3D models, Claude Code / Codex usage, and AI skills" width="820">
+</p>
 
-- **AI usage** — Claude Code and Codex: 5-hour and weekly limits, tokens today, current model.
-- **Your devices** — mouse, keyboard, headphones, phone… detected automatically (Bluetooth, USB,
-  UPower, KDE Connect / GSConnect), with battery levels, low-battery alerts and 3D models.
-- **Your AI skills** — what you have installed, how often you use it, and 10 recommended everyday
-  skills you can install with one click.
+**akari** (明かり, *light*) hangs three small capsules from the top edge of your screen. Hover one and it
+opens; drag it anywhere (or against a side edge to turn it into a vertical tab).
 
-Works on KDE Plasma, Hyprland, Sway, niri (Quickshell capsules), GNOME (native extension) and any
-other desktop (floating panel).
+| Capsule | What it shows |
+|---|---|
+| **AI** | **Claude Code** and **Codex**: what's left of your 5-hour and weekly limits, when they renew, when you'd run out at the current pace, tokens today, the model in use, sessions. Desktop alerts at 80 % / 95 %. A button (or a daily schedule) to **start your 5-hour window** with a tiny Haiku message. |
+| **Devices** | Your mouse, keyboard, headphones, phone, controllers… **detected automatically** (Bluetooth, USB, UPower, KDE Connect / GSConnect) with battery, charging state, codec/volume, Caps Lock, remaining time — and a **3D model** you can spin. Low-battery alerts. |
+| **Skills** | The skills and MCP connectors your AI already has, how often it used each one, and **10 recommended everyday skills** (PDF, Word, Excel, slides, writing, posters, diagrams…) you can install with one click for Claude Code and/or Codex. |
 
-**Español** · Cápsulas flotantes para el escritorio Linux que muestran de un vistazo el uso de tu IA
-(Claude Code y Codex), la batería de tus periféricos con modelos 3D y tus habilidades de IA, con 10
-recomendadas para el día a día.
+## Works on every Linux desktop
 
-3D models: CC0 (public domain) — see [modelos/CREDITS.md](modelos/CREDITS.md). Code: MIT.
+| Desktop | Interface |
+|---|---|
+| KDE Plasma (Wayland), Hyprland (Caelestia, end-4…), Sway, niri, river, labwc, COSMIC | **Capsules** (Quickshell, layer-shell) — takes your Caelestia or KDE accent colors |
+| GNOME 45–50 (Ubuntu, Fedora…) | **Native GNOME Shell extension** in the top bar + full panel with 3D |
+| X11, XFCE, Cinnamon, MATE, anything else | **Floating capsule app** (AppImage) with tray icon + full panel |
+
+<p align="center">
+  <img src="docs/gnome-bar.png" alt="akari in the GNOME top bar" width="560"><br>
+  <img src="docs/panel-en.png" alt="akari full panel: AI, devices with 3D, skills" width="900">
+</p>
+
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sJonathan15/akari/main/install.sh | bash
+```
+
+or from a clone:
+
+```sh
+git clone https://github.com/sJonathan15/akari && cd akari && ./install.sh
+```
+
+The installer detects your distribution (Arch, Debian/Ubuntu, Fedora, openSUSE, Void…) and desktop,
+installs what's missing (Quickshell where available, the icon font), sets up `systemd --user`
+services, and offers to connect Claude Code's status line (your current status line is kept and still
+shown). Options: `--interfaz capsulas|gnome|panel`, `--sin-statusline`, `--sin-dependencias`, `--si`,
+`--desinstalar`.
+
+**Just want the app?** Download `akari-*.AppImage` from [Releases](https://github.com/sJonathan15/akari/releases),
+make it executable and run it: it carries its own service (only `python3` is needed, which every
+distribution ships).
+
+**Try it without your data:** `AKARI_DEMO=1 akari servicio` shows example data.
+
+### Requirements
+- `python3` ≥ 3.9 (no pip packages). D-Bus is used through PyGObject if present, otherwise `busctl`.
+- Capsules: [Quickshell](https://quickshell.org) with Qt Quick 3D and `assimp` (installed for you on Arch and Fedora).
+- Phone battery: KDE Connect (KDE) or GSConnect (GNOME) on the computer and the phone.
+
+## Using it
+
+- **Hover** a capsule to open it, **click** its header to pin it open, **drag** it to move it,
+  **double-click** to send it back home. Drop it against the left/right edge to make it a vertical tab.
+- `akari estado` — summary in the terminal · `akari abrir` — full panel · `akari escritorio` — which interface fits your desktop.
+- A device detected wrongly? Use **Change type** or **Hide** in its card.
+
+### Settings (`~/.config/akari/`)
+| File | What |
+|---|---|
+| `ajustes.json` | `{"idioma": "es"\|"en", "avisos": true}` |
+| `dispositivos.json` | `ocultar`, `nombres`, `tipos`, `umbrales_bateria` (default `[20, 10, 5]`) |
+| `posiciones.json` | where you left each capsule |
+| `activar.json` | 5-hour window schedule |
+
+Environment: `AKARI_PANTALLA=DP-1` (which monitor), `AKARI_SIN_MOVIMIENTO=1` (reduce motion).
+
+<a id="privacy"></a>
+## Privacy
+
+Everything stays on your computer. The service listens only on `127.0.0.1:47830` and only accepts
+JSON requests (so no website can trigger actions). akari **reads**:
+
+- Claude Code: `~/.claude/projects/**/*.jsonl` (token counts), the status-line JSON (limits), and from
+  `~/.claude.json` only your display name and plan.
+- Codex: `~/.codex/sessions/**/rollout-*.jsonl` (token counts and limits), and from `~/.codex/auth.json`
+  only the first name and plan inside the ID token. Tokens and e-mail addresses are never read out, stored or shown.
+- Devices: BlueZ, UPower, `/sys`, PipeWire/PulseAudio, KDE Connect / GSConnect.
+
+Network is used only to download skills you choose to install (from their original GitHub repository)
+and, by the installer, fonts and the AppImage. The 5-hour window button runs `claude -p` with no tools.
+
+## Recommended skills
+
+| Skill | Source | License |
+|---|---|---|
+| PDF · Word · Excel · PowerPoint | [anthropics/skills](https://github.com/anthropics/skills) | Anthropic terms (use with your Claude account) |
+| Doc co-authoring · Work updates & emails · Posters · Theme factory · Skill creator | [anthropics/skills](https://github.com/anthropics/skills) | Apache-2.0 |
+| Diagrams (archify) | [tt-a1i/archify](https://github.com/tt-a1i/archify) | MIT |
+| More: transcribe (Codex), frontend design, algorithmic art, web testing, MCP builder | anthropics/skills, [openai/skills](https://github.com/openai/skills) | Apache-2.0 |
+
+Skills are downloaded on demand into `~/.claude/skills/` and/or `~/.codex/skills/`; akari only removes
+the ones it installed. The list lives in [`akari/catalogo.json`](akari/catalogo.json) — PRs welcome.
+
+## Development
+
+```
+akari/        Python service (stdlib only): ia.py (Claude Code + Codex), dispositivos.py, habilidades.py, servidor.py
+capsulas/     Quickshell capsules (QML)            web/       full panel (three.js 3D)
+app/          Electron app → AppImage              gnome/     GNOME Shell extension
+modelos/      CC0 3D models + herramientas/modelos.py    pruebas/gnome/  headless GNOME Shell test (Docker)
+```
+
+- Run from the repo: `bin/akari servicio` and `AKARI_RAIZ=$PWD qs -p capsulas`.
+- AppImage: `cd app && npm install && npm run appimage`.
+- GNOME extension test: `docker build -t akari-gnome pruebas/gnome && pruebas/gnome/probar.sh`.
+
+## Credits
+
+3D models and studio light are **CC0** (public domain): mouse and headphones by CreativeTrio, phone by
+Quaternius (via [Poly Pizza](https://poly.pizza)), studio HDRI by Sergej Majboroda ([Poly Haven](https://polyhaven.com));
+the keyboard is generated by akari — see [modelos/CREDITS.md](modelos/CREDITS.md).
+[three.js](https://threejs.org) (MIT), [Material Symbols](https://fonts.google.com/icons) (Apache-2.0), Rubik (OFL).
+Code: [MIT](LICENSE).
+
+---
+
+<a id="español"></a>
+## Español
+
+**akari** (明かり, *luz*) cuelga tres cápsulas pequeñas del borde superior de tu pantalla. Pasa el ratón y se
+abren; arrástralas a donde quieras (o contra un borde lateral para volverlas una pestaña vertical).
+
+- **IA** — **Claude Code** y **Codex**: cuánto te queda del límite de 5 horas y del semanal, cuándo se renuevan,
+  a qué hora se acabaría a este ritmo, tokens de hoy, modelo en uso y sesiones. Avisos al 80 % y 95 %. Botón
+  (o programación diaria) para **activar la ventana de 5 horas** con un mensaje mínimo a Haiku.
+- **Dispositivos** — ratón, teclado, audífonos, celular, mandos… **detectados solos** (Bluetooth, USB, UPower,
+  KDE Connect / GSConnect) con batería, carga, códec/volumen, Bloq Mayús, tiempo restante y un **modelo 3D** que
+  puedes girar. Avisos de batería baja.
+- **Habilidades** — las skills y conectores MCP que ya tiene tu IA, cuántas veces usó cada una y **10 habilidades
+  recomendadas para el día a día** (PDF, Word, Excel, presentaciones, redacción, afiches, diagramas…) que se
+  instalan con un clic para Claude Code y/o Codex.
+
+<p align="center"><img src="docs/capsulas-es.png" alt="cápsulas de akari en español" width="820"></p>
+
+**Funciona en todo Linux:** cápsulas en KDE Plasma, Hyprland (Caelestia…), Sway, niri y demás compositores
+con layer-shell; **extensión nativa** en GNOME 45–50; y una **app flotante** (AppImage, con icono en la bandeja)
+en X11, XFCE, Cinnamon, MATE o cualquier otro.
+
+### Instalar
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sJonathan15/akari/main/install.sh | bash
+```
+
+El instalador detecta tu distribución y tu escritorio, instala lo que falta, deja los servicios de
+`systemd --user` y te ofrece conectar la línea de estado de Claude Code (la tuya se conserva). Para quitarlo:
+`./install.sh --desinstalar`. ¿Solo la app? Baja el AppImage de [Releases](https://github.com/sJonathan15/akari/releases).
+¿Probar sin tus datos? `AKARI_DEMO=1 akari servicio`.
+
+### Privacidad
+Todo se queda en tu equipo: el servicio solo escucha en `127.0.0.1` y solo acepta JSON. De tus cuentas lee
+únicamente el nombre y el plan; nunca tokens ni correos. La red solo se usa para bajar las habilidades que elijas
+instalar (desde su repositorio original) y, al instalar, las fuentes y el AppImage.
+
+### Uso
+Pasa el ratón para abrir, clic en la cabecera para dejarla fija, arrastra para mover, doble clic para devolverla
+a su sitio. En la terminal: `akari estado` (resumen) y `akari abrir` (panel completo). ¿Un dispositivo salió con el
+tipo equivocado? Usa **Cambiar tipo** u **Ocultar** en su tarjeta. Ajustes en `~/.config/akari/` (ver la tabla de arriba).
+
+Modelos 3D **CC0** (dominio público) · código **MIT**.
