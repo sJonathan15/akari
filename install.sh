@@ -214,9 +214,10 @@ fi
 
 if [ "$INTERFAZ" = panel ] || [ "$INTERFAZ" = gnome ]; then
   # la app (AppImage) de la última versión publicada; sin ella, `akari abrir` usa el navegador
-  URL_APP="$(curl -fsSL https://api.github.com/repos/sJonathan15/akari/releases/latest 2>/dev/null \
-    | python3 -c "import json,sys; a=[x['browser_download_url'] for x in json.load(sys.stdin).get('assets',[]) if x['name'].endswith('.AppImage')]; print(a[0] if a else '')" 2>/dev/null || true)"
-  if [ -n "$URL_APP" ] && curl -fsSL -o "$DESTINO/app/akari-panel" "$URL_APP"; then
+  # enlace fijo a la última versión (no usa la API de GitHub, que limita las consultas anónimas)
+  URL_APP="$REPO_URL/releases/latest/download/akari-$(uname -m).AppImage"
+  if [ "$(uname -m)" = x86_64 ] && curl -fsSL -o "$DESTINO/app/akari-panel.tmp" "$URL_APP" \
+     && mv "$DESTINO/app/akari-panel.tmp" "$DESTINO/app/akari-panel"; then
     chmod +x "$DESTINO/app/akari-panel"
     ok "App de escritorio (AppImage) instalada" "Desktop app (AppImage) installed"
     # los AppImage necesitan libfuse2; Ubuntu 22.04+ ya no lo trae (sin él, akari lo extrae al abrir: más lento)
@@ -229,7 +230,8 @@ if [ "$INTERFAZ" = panel ] || [ "$INTERFAZ" = gnome ]; then
       esac
     fi
   else
-    aviso "Sin AppImage publicada todavía: el panel se abrirá en tu navegador." "No AppImage published yet: the panel will open in your browser."
+    rm -f "$DESTINO/app/akari-panel.tmp"
+    aviso "No pude bajar la app (AppImage): el panel se abrirá en tu navegador." "Could not download the app (AppImage): the panel will open in your browser."
   fi
 fi
 
@@ -331,10 +333,14 @@ PY
 fi
 
 echo
-paso "¡Listo! akari está encendido." "Done! akari is on."
-case "$INTERFAZ" in
-  capsulas) echo "  $(t "Pasa el ratón por las cápsulas de arriba; arrástralas para moverlas." "Hover the capsules at the top; drag them to move them.")" ;;
-  gnome) echo "  $(t "Cierra sesión y vuelve a entrar: verás akari en la barra superior." "Log out and back in: you'll see akari in the top bar.")" ;;
-  panel) echo "  $(t "Abre el panel con: akari abrir" "Open the panel with: akari abrir")" ;;
-esac
-echo "  $(t "Resumen en la terminal: akari estado · Quitar: $DESTINO/install.sh --desinstalar" "Terminal summary: akari estado · Remove: $DESTINO/install.sh --desinstalar")"
+paso "¡Listo! akari está instalado. Así se usa:" "Done! akari is installed. Here's how to use it:"
+echo
+"$DESTINO/bin/akari" guia "$INTERFAZ" | sed 's/^/  /'
+echo
+if [ "$INTERFAZ" = gnome ]; then
+  printf '\033[1;38;5;215m  ⚠  %s\033[0m\n' "$(t "IMPORTANTE: cierra sesión y vuelve a entrar para ver akari en la barra superior." "IMPORTANT: log out and back in to see akari in the top bar.")"
+  if tiene notify-send; then
+    notify-send -a akari -i "$DESTINO/iconos/akari.png" "$(t "akari está instalado" "akari is installed")" \
+      "$(t "Cierra sesión y vuelve a entrar para verlo en la barra superior." "Log out and back in to see it in the top bar.")" 2>/dev/null || true
+  fi
+fi

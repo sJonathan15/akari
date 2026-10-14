@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>Floating desktop capsules for Linux: your AI usage, your devices and your AI skills — at a glance.</b><br>
-  <a href="#español">Español</a> · <a href="#install">Install</a> · <a href="#privacy">Privacy</a>
+  <a href="#español">Español</a> · <a href="#install">Install</a> · <a href="#first-steps">First steps</a> · <a href="#privacy">Privacy</a>
 </p>
 
 <p align="center">
@@ -39,6 +39,9 @@ opens; drag it anywhere (or against a side edge to turn it into a vertical tab).
 curl -fsSL https://raw.githubusercontent.com/sJonathan15/akari/main/install.sh | bash
 ```
 
+> **Ubuntu / GNOME:** after installing, **log out and log back in** — akari appears in the top bar.
+> Then see [First steps](#first-steps) for your desktop.
+
 or from a clone:
 
 ```sh
@@ -62,11 +65,45 @@ distribution ships).
 - Capsules: [Quickshell](https://quickshell.org) with Qt Quick 3D and `assimp` (installed for you on Arch and Fedora).
 - Phone battery: KDE Connect (KDE) or GSConnect (GNOME) on the computer and the phone.
 
+## First steps
+
+After installing, **how you open akari depends on your desktop.** The installer prints this guide at
+the end, and you can see it again any time with `akari guia`.
+
+### Ubuntu / Fedora / any GNOME
+1. **Log out and log back in** (first time only) — GNOME only loads extensions at login.
+2. Three new icons appear at the **top right of the top bar**: your devices with their battery,
+   ★ with what's left of Claude Code / Codex, and a flask with your skills. Click each one.
+3. **Panel with 3D models:** *Open panel (with 3D)* in any of those menus, search **akari** in your
+   apps, or run `akari abrir`.
+
+Icons missing after logging back in? Run `gnome-extensions enable akari@sjonathan15.github.io` and log in again.
+
+### KDE Plasma, Hyprland, Sway, niri…
+Three capsules hang from the **top edge of the screen, near the center**. Hover to open, click the header
+to pin, drag to move (against a side edge it becomes a vertical tab), double-click to send it home.
+Not there? `systemctl --user restart akari akari-capsulas`.
+
+### X11, XFCE, Cinnamon, MATE, others (and the AppImage)
+A **floating pill at the top center** with a tray icon. Click it to open the panel; use the tray icon to
+hide it or to start it at login. Closed it? Search **akari** in your apps or run `akari app`.
+
+### Troubleshooting
+| Problem | Fix |
+|---|---|
+| No data at all | `systemctl --user restart akari` · check `systemctl --user status akari` |
+| `akari: command not found` | Log out and back in (adds `~/.local/bin` to your PATH) or use `~/.local/bin/akari` |
+| Claude limits say "no reading yet" | Send any message in Claude Code — limits arrive with the next reply |
+| Codex shows nothing | Use Codex once; akari reads `~/.codex/sessions` |
+| Phone not shown | Install KDE Connect (KDE) or GSConnect (GNOME) on the computer **and** the phone, and pair them |
+| AppImage won't open on Ubuntu | Re-run the installer (installs `libfuse2`); akari already adds `--no-sandbox` where AppArmor requires it |
+| A device has the wrong type | Open it and use **Change type** or **Hide** |
+
 ## Using it
 
 - **Hover** a capsule to open it, **click** its header to pin it open, **drag** it to move it,
   **double-click** to send it back home. Drop it against the left/right edge to make it a vertical tab.
-- `akari estado` — summary in the terminal · `akari abrir` — full panel · `akari escritorio` — which interface fits your desktop.
+- `akari estado` — summary in the terminal · `akari abrir` — full panel · `akari app` — floating pill · `akari guia` — how to use it on your desktop.
 - A device detected wrongly? Use **Change type** or **Hide** in its card.
 
 ### Settings (`~/.config/akari/`)
@@ -157,10 +194,46 @@ en X11, XFCE, Cinnamon, MATE o cualquier otro.
 curl -fsSL https://raw.githubusercontent.com/sJonathan15/akari/main/install.sh | bash
 ```
 
+> **Ubuntu / GNOME:** al terminar, **cierra sesión y vuelve a entrar**: akari aparece en la barra superior.
+> Luego mira [Primeros pasos](#primeros-pasos) para tu escritorio.
+
 El instalador detecta tu distribución y tu escritorio, instala lo que falta, deja los servicios de
 `systemd --user` y te ofrece conectar la línea de estado de Claude Code (la tuya se conserva). Para quitarlo:
 `./install.sh --desinstalar`. ¿Solo la app? Baja el AppImage de [Releases](https://github.com/sJonathan15/akari/releases).
 ¿Probar sin tus datos? `AKARI_DEMO=1 akari servicio`.
+
+<a id="primeros-pasos"></a>
+### Primeros pasos
+
+Después de instalar, **cómo se abre akari depende de tu escritorio**. El instalador muestra esta guía al
+terminar y puedes verla cuando quieras con `akari guia`.
+
+**Ubuntu / Fedora / cualquier GNOME**
+1. **Cierra sesión y vuelve a entrar** (solo la primera vez): GNOME carga las extensiones al iniciar sesión.
+2. Aparecen tres iconos **arriba a la derecha de la barra superior**: tus dispositivos con su batería,
+   ★ con lo que te queda de Claude Code / Codex, y un matraz con tus habilidades. Haz clic en cada uno.
+3. **Panel con modelos 3D:** *Abrir panel (con 3D)* en cualquiera de esos menús, busca **akari** en tus
+   aplicaciones o ejecuta `akari abrir`.
+
+¿No aparecen tras volver a entrar? `gnome-extensions enable akari@sjonathan15.github.io` y vuelve a entrar.
+
+**KDE Plasma, Hyprland, Sway, niri…** — tres cápsulas cuelgan del **borde superior, cerca del centro**. Pasa
+el ratón para abrirlas, clic en la cabecera para fijarlas, arrástralas para moverlas, doble clic para devolverlas.
+¿No están? `systemctl --user restart akari akari-capsulas`.
+
+**X11, XFCE, Cinnamon, MATE, otros (y el AppImage)** — una **pastilla flotante arriba al centro** con icono en la
+bandeja. Clic para abrir el panel; desde la bandeja la ocultas o eliges si arranca con la sesión. ¿La cerraste?
+Busca **akari** en tus aplicaciones o ejecuta `akari app`.
+
+| Problema | Solución |
+|---|---|
+| No sale ningún dato | `systemctl --user restart akari` · revisa `systemctl --user status akari` |
+| `akari: orden no encontrada` | Cierra sesión y vuelve a entrar (agrega `~/.local/bin` al PATH) o usa `~/.local/bin/akari` |
+| Los límites de Claude dicen "sin lectura" | Envía un mensaje en Claude Code: llegan con la siguiente respuesta |
+| Codex no muestra nada | Usa Codex una vez; akari lee `~/.codex/sessions` |
+| No aparece el celular | Instala KDE Connect (KDE) o GSConnect (GNOME) en el equipo **y** en el celular, y vincúlalos |
+| El AppImage no abre en Ubuntu | Vuelve a ejecutar el instalador (instala `libfuse2`); akari ya agrega `--no-sandbox` donde AppArmor lo exige |
+| Un dispositivo salió con otro tipo | Ábrelo y usa **Cambiar tipo** u **Ocultar** |
 
 ### Privacidad
 Todo se queda en tu equipo: el servicio solo escucha en `127.0.0.1` y solo acepta JSON. De tus cuentas lee

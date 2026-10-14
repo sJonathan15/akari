@@ -4,6 +4,7 @@
   akari abrir          abre el panel (ventana flotante)
   akari app            abre la cápsula flotante con icono en la bandeja (X11, XFCE…)
   akari estado         resumen en la terminal
+  akari guia           cómo se usa akari en tu escritorio
   akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o panel)
   akari statusline     línea de estado para Claude Code (la configura el instalador)
   akari version
@@ -30,6 +31,89 @@ def escritorio():
     if wayland and (shutil.which("qs") or shutil.which("quickshell")):
         return nombre, "capsulas"
     return nombre, "panel"
+
+
+GUIA = {
+    "gnome": (
+        """akari vive en la barra superior de GNOME (arriba a la derecha).
+
+  1. CIERRA SESIÓN Y VUELVE A ENTRAR (solo la primera vez): GNOME carga
+     las extensiones al iniciar sesión.
+  2. Arriba a la derecha verás tres iconos nuevos:
+       ratón/audífonos con %  → tus dispositivos y su batería
+       ★ con %                → lo que te queda de Claude Code / Codex
+       matraz con un número    → tus habilidades de IA
+     Haz clic en cada uno para ver el detalle.
+  3. Panel con modelos 3D: en cualquiera de esos menús, "Abrir panel (con 3D)",
+     o busca "akari" en tus aplicaciones, o en la terminal: akari abrir
+
+¿No aparecen los iconos tras volver a entrar?
+     gnome-extensions enable akari@sjonathan15.github.io   (y vuelve a entrar)""",
+        """akari lives in the GNOME top bar (top right).
+
+  1. LOG OUT AND LOG BACK IN (first time only): GNOME loads extensions at login.
+  2. At the top right you'll see three new icons:
+       mouse/headphones with %  → your devices and their battery
+       ★ with %                  → what's left of Claude Code / Codex
+       flask with a number        → your AI skills
+     Click each one for details.
+  3. Panel with 3D models: "Open panel (with 3D)" in any of those menus,
+     or search "akari" in your apps, or in a terminal: akari abrir
+
+Icons missing after logging back in?
+     gnome-extensions enable akari@sjonathan15.github.io   (then log in again)"""),
+    "capsulas": (
+        """akari son tres cápsulas que cuelgan del borde superior de la pantalla, cerca del centro.
+
+  1. Pasa el ratón por encima de una cápsula para abrirla.
+  2. Clic en su cabecera: la deja abierta. Arrástrala para moverla; contra un borde
+     lateral se vuelve pestaña vertical. Doble clic: vuelve a su sitio.
+  3. Panel completo con 3D: botón "Abrir panel completo" o, en la terminal: akari abrir
+
+¿No ves las cápsulas?
+     systemctl --user restart akari akari-capsulas""",
+        """akari is three capsules hanging from the top edge of the screen, near the center.
+
+  1. Hover a capsule to open it.
+  2. Click its header to pin it open. Drag it to move it; against a side edge it
+     becomes a vertical tab. Double-click: back to its place.
+  3. Full panel with 3D: "Open full panel" button or, in a terminal: akari abrir
+
+Don't see the capsules?
+     systemctl --user restart akari akari-capsulas"""),
+    "panel": (
+        """akari es una pastilla flotante arriba en el centro de la pantalla, con un icono en la bandeja.
+
+  1. Haz clic en la pastilla (o en el icono de la bandeja) para abrir el panel con 3D.
+  2. Arrastra la pastilla para moverla. Desde el icono de la bandeja puedes ocultarla
+     o hacer que arranque (o no) al iniciar sesión.
+  3. Si la cerraste: busca "akari" en tus aplicaciones, o en la terminal: akari app""",
+        """akari is a floating pill at the top center of the screen, with a tray icon.
+
+  1. Click the pill (or the tray icon) to open the panel with 3D.
+  2. Drag the pill to move it. From the tray icon you can hide it or choose whether
+     it starts at login.
+  3. If you closed it: search "akari" in your apps, or in a terminal: akari app"""),
+}
+COMUN = (
+    """
+En la terminal:  akari estado  (resumen) · akari abrir  (panel) · akari guia  (esta ayuda)
+Si no hay datos: systemctl --user restart akari
+Límites de Claude: aparecen después de tu próximo mensaje en Claude Code. Codex: después de usarlo.
+Quitar akari:    ~/.local/share/akari/install.sh --desinstalar
+Más ayuda:       https://github.com/sJonathan15/akari#primeros-pasos""",
+    """
+In a terminal:  akari estado  (summary) · akari abrir  (panel) · akari guia  (this help)
+No data?        systemctl --user restart akari
+Claude limits show up after your next message in Claude Code; Codex after you use it.
+Remove akari:   ~/.local/share/akari/install.sh --desinstalar
+More help:      https://github.com/sJonathan15/akari#first-steps""")
+
+
+def guia(interfaz=None):
+    interfaz = interfaz if interfaz in GUIA else escritorio()[1]
+    texto = GUIA[interfaz]
+    print(t(texto[0], texto[1]) + t(COMUN[0], COMUN[1]))
 
 
 def pedir_estado():
@@ -119,6 +203,8 @@ def main():
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif orden == "estado":
         sys.exit(resumen())
+    elif orden in ("guia", "guía", "guide"):
+        guia(sys.argv[2] if len(sys.argv) > 2 else None)
     elif orden == "escritorio":
         nombre, interfaz = escritorio()
         print(f"{nombre or '?'} → {interfaz}")

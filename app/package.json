@@ -17,7 +17,7 @@
   "build": {
     "appId": "io.github.sjonathan15.akari",
     "productName": "akari",
-    "artifactName": "akari-${version}-${arch}.AppImage",
+    "artifactName": "akari-${arch}.AppImage",
     "files": [
       "main.js",
       "preload.js",
