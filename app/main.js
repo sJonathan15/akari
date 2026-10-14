@@ -126,7 +126,11 @@ function alternarPanel() {
 function autoarranque(activar) {
   if (!activar) return fs.rmSync(AUTOARRANQUE, { force: true });
   const exe = process.env.APPIMAGE || process.execPath;
-  const args = app.isPackaged ? "" : ` "${path.join(__dirname)}"`;
+  let args = app.isPackaged ? "" : ` "${path.join(__dirname)}"`;
+  // Ubuntu 23.10+ (AppArmor) bloquea el sandbox de Chromium en apps sin instalar
+  try {
+    if (fs.readFileSync("/proc/sys/kernel/apparmor_restrict_unprivileged_userns", "utf8").trim() === "1") args += " --no-sandbox";
+  } catch {}
   fs.mkdirSync(path.dirname(AUTOARRANQUE), { recursive: true });
   fs.writeFileSync(AUTOARRANQUE, `[Desktop Entry]\nType=Application\nName=akari\nExec="${exe}"${args}\nIcon=${ICONO}\nX-GNOME-Autostart-enabled=true\n`);
 }

@@ -219,6 +219,15 @@ if [ "$INTERFAZ" = panel ] || [ "$INTERFAZ" = gnome ]; then
   if [ -n "$URL_APP" ] && curl -fsSL -o "$DESTINO/app/akari-panel" "$URL_APP"; then
     chmod +x "$DESTINO/app/akari-panel"
     ok "App de escritorio (AppImage) instalada" "Desktop app (AppImage) installed"
+    # los AppImage necesitan libfuse2; Ubuntu 22.04+ ya no lo trae (sin él, akari lo extrae al abrir: más lento)
+    if ! ldconfig -p 2>/dev/null | grep -q "libfuse.so.2"; then
+      case "$GESTOR" in
+        apt-get) instalar_paquetes libfuse2t64 2>/dev/null || instalar_paquetes libfuse2 || true ;;
+        dnf) instalar_paquetes fuse-libs || true ;;
+        pacman) instalar_paquetes fuse2 || true ;;
+        zypper) instalar_paquetes libfuse2 || true ;;
+      esac
+    fi
   else
     aviso "Sin AppImage publicada todavía: el panel se abrirá en tu navegador." "No AppImage published yet: the panel will open in your browser."
   fi
@@ -276,9 +285,9 @@ fi
 # la app flotante (AppImage) trae su propio servicio: basta con que arranque con la sesión
 if [ "$INTERFAZ" = panel ] && [ -x "$DESTINO/app/akari-panel" ]; then
   mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
-  printf '[Desktop Entry]\nType=Application\nName=akari\nExec=%s\nIcon=%s\nX-GNOME-Autostart-enabled=true\n' \
-    "$DESTINO/app/akari-panel" "$DESTINO/iconos/akari.png" > "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/akari.desktop"
-  if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then (nohup "$DESTINO/app/akari-panel" >/dev/null 2>&1 &); fi
+  printf '[Desktop Entry]\nType=Application\nName=akari\nExec=%s app\nIcon=%s\nX-GNOME-Autostart-enabled=true\n' \
+    "$DESTINO/bin/akari" "$DESTINO/iconos/akari.png" > "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/akari.desktop"
+  if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then "$DESTINO/bin/akari" app || true; fi
   ok "Cápsula flotante lista (arranca con tu sesión)" "Floating capsule ready (starts with your session)"
 fi
 

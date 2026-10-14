@@ -2,6 +2,7 @@
 
   akari [servicio]     arranca el servicio (lo hace systemd al iniciar sesión)
   akari abrir          abre el panel (ventana flotante)
+  akari app            abre la cápsula flotante con icono en la bandeja (X11, XFCE…)
   akari estado         resumen en la terminal
   akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o panel)
   akari statusline     línea de estado para Claude Code (la configura el instalador)
@@ -36,13 +37,35 @@ def pedir_estado():
         return json.load(r)
 
 
+def entorno_appimage():
+    """Ajustes para que el AppImage abra en cualquier distribución: (argumentos extra, entorno).
+    * Sin libfuse2 (Ubuntu 22.04+ no lo trae) el AppImage no se monta: se extrae y se ejecuta.
+    * Ubuntu 23.10+ (AppArmor) bloquea el sandbox de Chromium en apps sin instalar: --no-sandbox."""
+    env = dict(os.environ)
+    try:
+        libs = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        libs = "libfuse.so.2"
+    if "libfuse.so.2" not in libs:
+        env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
+    extra = []
+    try:
+        if open("/proc/sys/kernel/apparmor_restrict_unprivileged_userns").read().strip() == "1":
+            extra.append("--no-sandbox")
+    except OSError:
+        pass
+    return extra, env
+
+
 def abrir():
     """Panel: la app empaquetada si existe; si no, el navegador en modo aplicación."""
     url = f"http://127.0.0.1:{PUERTO}/"
     for app in (RAIZ / "app" / "akari-panel", RAIZ / "app" / "node_modules" / ".bin" / "electron"):
         if app.exists():
-            orden = [str(app), "--panel"] if app.name == "akari-panel" else [str(app), str(RAIZ / "app"), "--panel"]
-            subprocess.Popen(orden, start_new_session=True)
+            extra, env = entorno_appimage()
+            orden = [str(app), "--panel", *extra] if app.name == "akari-panel" else [str(app), str(RAIZ / "app"), "--panel", *extra]
+            subprocess.Popen(orden, start_new_session=True, env=env,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return
     for nav in ("chromium", "google-chrome-stable", "google-chrome", "brave", "microsoft-edge-stable", "vivaldi"):
         if shutil.which(nav):
@@ -87,6 +110,13 @@ def main():
         linea()
     elif orden == "abrir":
         abrir()
+    elif orden == "app":
+        app = RAIZ / "app" / "akari-panel"
+        if not app.exists():
+            sys.exit(t("No está la app (AppImage): vuelve a ejecutar el instalador.", "The app (AppImage) is missing: run the installer again."))
+        extra, env = entorno_appimage()
+        subprocess.Popen([str(app), *extra], start_new_session=True, env=env,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif orden == "estado":
         sys.exit(resumen())
     elif orden == "escritorio":
