@@ -268,16 +268,18 @@ EOF
     if systemctl --user enable --now akari-capsulas.service >/dev/null 2>&1; then ok "Cápsulas activas (arriba, en el centro)" "Capsules running (top center)"
     else aviso "No pude arrancar las cápsulas: revisa 'journalctl --user -u akari-capsulas'." "Could not start the capsules: check 'journalctl --user -u akari-capsulas'."; fi
   fi
-  if [ "$INTERFAZ" = panel ] && [ -x "$DESTINO/app/akari-panel" ]; then
-    mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
-    printf '[Desktop Entry]\nType=Application\nName=akari\nExec=%s\nIcon=%s\nX-GNOME-Autostart-enabled=true\n' \
-      "$DESTINO/app/akari-panel" "$DESTINO/iconos/akari.png" > "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/akari.desktop"
-    (nohup "$DESTINO/app/akari-panel" >/dev/null 2>&1 &)
-    ok "Cápsula flotante activa (también arranca con tu sesión)" "Floating capsule running (also starts with your session)"
-  fi
 else
   aviso "Sin systemd de usuario: arranca 'akari servicio' al iniciar sesión (por ejemplo, desde el autoarranque de tu escritorio)." \
         "No systemd user session: start 'akari servicio' at login (for example, from your desktop's autostart)."
+fi
+
+# la app flotante (AppImage) trae su propio servicio: basta con que arranque con la sesión
+if [ "$INTERFAZ" = panel ] && [ -x "$DESTINO/app/akari-panel" ]; then
+  mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+  printf '[Desktop Entry]\nType=Application\nName=akari\nExec=%s\nIcon=%s\nX-GNOME-Autostart-enabled=true\n' \
+    "$DESTINO/app/akari-panel" "$DESTINO/iconos/akari.png" > "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/akari.desktop"
+  if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then (nohup "$DESTINO/app/akari-panel" >/dev/null 2>&1 &); fi
+  ok "Cápsula flotante lista (arranca con tu sesión)" "Floating capsule ready (starts with your session)"
 fi
 
 mkdir -p "$HOME/.local/share/applications"
@@ -326,4 +328,4 @@ case "$INTERFAZ" in
   gnome) echo "  $(t "Cierra sesión y vuelve a entrar: verás akari en la barra superior." "Log out and back in: you'll see akari in the top bar.")" ;;
   panel) echo "  $(t "Abre el panel con: akari abrir" "Open the panel with: akari abrir")" ;;
 esac
-echo "  $(t "Resumen en la terminal: akari estado · Quitar: ./install.sh --desinstalar" "Terminal summary: akari estado · Remove: ./install.sh --desinstalar")"
+echo "  $(t "Resumen en la terminal: akari estado · Quitar: $DESTINO/install.sh --desinstalar" "Terminal summary: akari estado · Remove: $DESTINO/install.sh --desinstalar")"
