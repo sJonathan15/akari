@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>akari</title>
+  <link rel="icon" href="icono.svg">
+  <link rel="stylesheet" href="estilo.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+  <!-- vista "capsula": la pastilla flotante de la app (GNOME, X11…); vista normal: el panel -->
+  <div id="capsula" class="capsula" hidden>
+    <button class="pastilla" id="pastilla" type="button">
+      <span class="anillo-mini" id="cap-anillo"></span>
+      <span id="cap-ia" class="num">—</span>
+      <span class="sep"></span>
+      <span id="cap-disp" class="dispositivos-mini"></span>
+      <span class="sep"></span>
+      <span class="icono relleno">auto_awesome</span><span id="cap-hab" class="num">—</span>
+    </button>
+  </div>
+
+  <main id="panel" class="panel" hidden>
+    <header class="cabecera">
+      <div class="marca"><img class="logo" src="icono.svg" alt=""><span>akari</span></div>
+      <nav class="pestanas" id="pestanas">
+        <button data-p="ia" class="activa"><span class="icono">bolt</span><span data-t="IA|AI"></span></button>
+        <button data-p="disp"><span class="icono">devices</span><span data-t="Dispositivos|Devices"></span></button>
+        <button data-p="hab"><span class="icono">auto_awesome</span><span data-t="Habilidades|Skills"></span></button>
+      </nav>
+      <span class="estado-servicio" id="servicio" title=""></span>
+    </header>
+
+    <!-- IA -->
+    <section id="p-ia" class="pagina activa">
+      <div class="sub-pestanas" id="proveedores"></div>
+      <div id="sin-ia" class="tarjeta aviso" hidden data-t="No encontré Claude Code ni Codex en este equipo. Cuando los instales e inicies sesión, aquí verás tus límites y tokens.|Neither Claude Code nor Codex was found. Once you install one and sign in, your limits and tokens show up here."></div>
+      <div id="ia-contenido">
+        <div class="tarjeta limites" id="limites"></div>
+        <div class="tarjeta" id="activador"></div>
+        <div class="fila-tarjetas">
+          <div class="tarjeta" id="modelo"></div>
+          <div class="tarjeta" id="tokens"></div>
+        </div>
+        <div class="tarjeta" id="semana"></div>
+        <div class="tarjeta" id="sesiones"></div>
+      </div>
+    </section>
+
+    <!-- Dispositivos -->
+    <section id="p-disp" class="pagina">
+      <div class="tarjeta escenario">
+        <canvas id="visor"></canvas>
+        <div class="escenario-texto"><small id="d-tipo"></small><strong id="d-nombre"></strong></div>
+        <div class="chip" id="d-chip"></div>
+        <div class="anillo-bateria" id="d-anillo"></div>
+      </div>
+      <div class="tarjeta lista" id="d-lista"></div>
+      <div class="tarjeta" id="d-detalles"></div>
+      <div class="pie" id="d-pie"></div>
+    </section>
+
+    <!-- Habilidades -->
+    <section id="p-hab" class="pagina">
+      <div class="sub-pestanas" id="hab-pestanas">
+        <button data-h="recomendadas" class="activa" data-t="Recomendadas|Recommended"></button>
+        <button data-h="instaladas" data-t="Instaladas|Installed"></button>
+        <button data-h="mcp">MCP</button>
+      </div>
+      <div id="hab-contenido"></div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

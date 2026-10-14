@@ -1,0 +1,35 @@
+{
+  "name": "akari",
+  "version": "0.1.0",
+  "description": "Floating Linux desktop capsules: Claude Code & Codex usage, device batteries with 3D models, and AI skills",
+  "homepage": "https://github.com/sJonathan15/akari",
+  "license": "MIT",
+  "author": "sJonathan15 <150947214+sJonathan15@users.noreply.github.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "appimage": "electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.sjonathan15.akari",
+    "productName": "akari",
+    "artifactName": "akari-${version}-${arch}.AppImage",
+    "files": ["main.js", "preload.js", "package.json"],
+    "extraResources": [
+      { "from": "../akari", "to": "akari/akari", "filter": ["**/*", "!__pycache__"] },
+      { "from": "../web", "to": "akari/web" },
+      { "from": "../modelos", "to": "akari/modelos" },
+      { "from": "../iconos", "to": "akari/iconos" }
+    ],
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "../iconos/akari.png",
+      "category": "Utility",
+      "synopsis": "AI usage, device batteries and AI skills at a glance"
+    }
+  }
+}

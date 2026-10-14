@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- akari 明かり: farol de papel encendido -->
+  <defs>
+    <radialGradient id="fondo" cx="50%" cy="40%" r="75%">
+      <stop offset="0" stop-color="#2a2433"/><stop offset="1" stop-color="#131317"/>
+    </radialGradient>
+    <radialGradient id="luz" cx="45%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#fff1c9"/><stop offset="0.55" stop-color="#ffc56b"/><stop offset="1" stop-color="#ef8a3c"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc56b" stop-opacity="0.45"/><stop offset="1" stop-color="#ffc56b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#fondo)"/>
+  <circle cx="128" cy="136" r="104" fill="url(#halo)"/>
+  <rect x="120" y="30" width="16" height="22" rx="4" fill="#5b4a3a"/>
+  <rect x="92" y="50" width="72" height="16" rx="6" fill="#3b3140"/>
+  <ellipse cx="128" cy="136" rx="66" ry="74" fill="url(#luz)"/>
+  <g fill="none" stroke="#c96a2b" stroke-opacity="0.55" stroke-width="3.5" stroke-linecap="round">
+    <path d="M76 100 Q128 92 180 100"/><path d="M64 124 Q128 116 192 124"/>
+    <path d="M64 148 Q128 156 192 148"/><path d="M76 172 Q128 180 180 172"/>
+  </g>
+  <rect x="92" y="206" width="72" height="16" rx="6" fill="#3b3140"/>
+  <rect x="122" y="222" width="12" height="14" rx="4" fill="#5b4a3a"/>
+</svg>
