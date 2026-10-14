@@ -16,12 +16,13 @@ Item {
     readonly property string carpeta: "file://" + (Quickshell.env("AKARI_RAIZ") || (Quickshell.shellDir + "/..")) + "/modelos/"
     // orientación de cada modelo para que se vea de tres cuartos
     readonly property var ajustes: ({
-        mouse:      { rx: 0, ry: 0,   inclinacion: -24, tam: 112 },
-        headphones: { rx: 0, ry: 0,   inclinacion: -6,  tam: 104 },
-        keyboard:   { rx: 0, ry: 0,   inclinacion: -40, tam: 118 },
-        phone:      { rx: 0, ry: 0,   inclinacion: -4,  tam: 96 }
+        mouse:      { rx: 0, ry: 210, inclinacion: -40, tam: 100 },
+        headphones: { rx: 0, ry: 25,  inclinacion: -10, tam: 104 },
+        keyboard:   { rx: 0, ry: 20,  inclinacion: -45, tam: 122 },
+        phone:      { rx: 0, ry: 20,  inclinacion: -8,  tam: 92 }
     })
-    readonly property var ajuste: ajustes[modelo] || ajustes.mouse
+    property var ajusteManual: null            // para pruebas: { rx, ry, rz, inclinacion, tam }
+    readonly property var ajuste: ajusteManual || ajustes[modelo] || ajustes.mouse
 
     // ---------------------------------------------------------- giro
     readonly property real giroLento: Tema.movimientoReducido ? 0 : 20   // grados por segundo

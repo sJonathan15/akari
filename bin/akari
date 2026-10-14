@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Lanzador de akari: python3 -m akari <orden>, desde la carpeta de instalación.
+RAIZ="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+export PYTHONPATH="$RAIZ${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m akari "$@"

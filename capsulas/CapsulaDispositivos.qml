@@ -372,18 +372,25 @@ Capsula {
                                 { id: "tipo", icono: "swap_horiz", texto: U.t("Cambiar tipo", "Change type") },
                                 { id: "ocultar", icono: "visibility_off", texto: U.t("Ocultar", "Hide") }
                             ]
-                            delegate: Row {
+                            delegate: Item {
+                                id: ajuste
                                 required property var modelData
-                                spacing: 4
+                                implicitWidth: filaAjuste.implicitWidth
+                                implicitHeight: 20
                                 opacity: zonaAjuste.containsMouse ? 1 : 0.7
-                                Icono { text: parent.modelData.icono; tam: 14; color: Tema.sobreSuperficieVar; anchors.verticalCenter: parent.verticalCenter }
-                                Etiqueta { text: parent.modelData.texto; tam: Tema.textoChico; color: Tema.sobreSuperficieVar; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    id: filaAjuste
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    Icono { text: ajuste.modelData.icono; tam: 14; color: Tema.sobreSuperficieVar; anchors.verticalCenter: parent.verticalCenter }
+                                    Etiqueta { text: ajuste.modelData.texto; tam: Tema.textoChico; color: Tema.sobreSuperficieVar; anchors.verticalCenter: parent.verticalCenter }
+                                }
                                 MouseArea {
                                     id: zonaAjuste
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: Datos.enviar("/api/dispositivos", { id: capsula.actual.id, accion: parent.modelData.id },
+                                    onClicked: Datos.enviar("/api/dispositivos", { id: capsula.actual.id, accion: ajuste.modelData.id },
                                                             r => capsula.respuesta = r.mensaje)
                                 }
                             }
