@@ -1,0 +1,8 @@
+{
+  "uuid": "akari@sjonathan15.github.io",
+  "name": "akari",
+  "description": "AI usage (Claude Code & Codex), device batteries and AI skills in the top bar. Needs the akari service: https://github.com/sJonathan15/akari",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/sJonathan15/akari",
+  "version": 1
+}

@@ -41,7 +41,7 @@ def abrir():
     url = f"http://127.0.0.1:{PUERTO}/"
     for app in (RAIZ / "app" / "akari-panel", RAIZ / "app" / "node_modules" / ".bin" / "electron"):
         if app.exists():
-            orden = [str(app)] if app.name == "akari-panel" else [str(app), str(RAIZ / "app")]
+            orden = [str(app), "--panel"] if app.name == "akari-panel" else [str(app), str(RAIZ / "app"), "--panel"]
             subprocess.Popen(orden, start_new_session=True)
             return
     for nav in ("chromium", "google-chrome-stable", "google-chrome", "brave", "microsoft-edge-stable", "vivaldi"):

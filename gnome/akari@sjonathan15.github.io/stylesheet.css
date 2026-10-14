@@ -1,0 +1,7 @@
+.akari-caja { spacing: 4px; }
+.akari-etiqueta { font-feature-settings: "tnum"; font-weight: 500; }
+.akari-icono { icon-size: 16px; }
+.akari-mal { color: #ffb4ab; }
+.akari-medio { color: #f1b3e6; }
+.akari-apagado { opacity: 0.5; }
+.akari-titulo { font-weight: bold; font-size: 0.9em; }
