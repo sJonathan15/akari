@@ -18,18 +18,42 @@
     "appId": "io.github.sjonathan15.akari",
     "productName": "akari",
     "artifactName": "akari-${version}-${arch}.AppImage",
-    "files": ["main.js", "preload.js", "package.json"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "../akari", "to": "akari/akari", "filter": ["**/*", "!__pycache__"] },
-      { "from": "../web", "to": "akari/web" },
-      { "from": "../modelos", "to": "akari/modelos" },
-      { "from": "../iconos", "to": "akari/iconos" }
+      {
+        "from": "../akari",
+        "to": "akari/akari",
+        "filter": [
+          "**/*",
+          "!__pycache__"
+        ]
+      },
+      {
+        "from": "../web",
+        "to": "akari/web"
+      },
+      {
+        "from": "../modelos",
+        "to": "akari/modelos"
+      },
+      {
+        "from": "../iconos",
+        "to": "akari/iconos"
+      }
     ],
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "../iconos/akari.png",
       "category": "Utility",
-      "synopsis": "AI usage, device batteries and AI skills at a glance"
+      "synopsis": "AI usage, device batteries and AI skills at a glance",
+      "syncDesktopName": true
     }
-  }
+  },
+  "desktopName": "akari.desktop"
 }

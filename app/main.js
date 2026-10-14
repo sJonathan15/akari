@@ -26,6 +26,13 @@ const t = (a, b) => (es ? a : b);
 // La pastilla necesita posición fija y "siempre visible": en Wayland nativo Electron no puede,
 // así que se usa XWayland (está en GNOME, KDE y casi todos) salvo que se pida otra cosa.
 if (process.env.DISPLAY && !process.argv.some((a) => a.startsWith("--ozone-platform"))) {
+  if (process.env.XDG_SESSION_TYPE !== "x11") {
+    // GTK se inicia antes que este archivo: hay que volver a arrancar con el entorno de X11
+    process.env.XDG_SESSION_TYPE = "x11";
+    process.env.GDK_BACKEND = "x11";
+    app.relaunch({ execPath: process.env.APPIMAGE || process.execPath, args: process.argv.slice(1) });
+    app.exit(0);
+  }
   app.commandLine.appendSwitch("ozone-platform", "x11");
 }
 
