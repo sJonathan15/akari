@@ -1,0 +1,112 @@
+{
+  "_ayuda": "Habilidades (skills) que akari recomienda. 'fuente' = repositorio de GitHub y carpeta con el SKILL.md. Se descargan siempre del repositorio original; akari no las copia.",
+  "recomendadas": [
+    {
+      "id": "pdf", "icono": "picture_as_pdf",
+      "nombre": {"es": "PDF", "en": "PDF"},
+      "detalle": {"es": "Lee, llena formularios, une, divide y extrae tablas de PDFs", "en": "Read, fill forms, merge, split and extract tables from PDFs"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/pdf", "ref": "main"},
+      "licencia": "Anthropic"
+    },
+    {
+      "id": "docx", "icono": "description",
+      "nombre": {"es": "Documentos de Word", "en": "Word documents"},
+      "detalle": {"es": "Crea y edita .docx con formato, comentarios y control de cambios", "en": "Create and edit .docx files with formatting, comments and tracked changes"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/docx", "ref": "main"},
+      "licencia": "Anthropic"
+    },
+    {
+      "id": "xlsx", "icono": "table_chart",
+      "nombre": {"es": "Hojas de Excel", "en": "Excel spreadsheets"},
+      "detalle": {"es": "Hojas de cálculo con fórmulas, gráficos y análisis de datos", "en": "Spreadsheets with formulas, charts and data analysis"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/xlsx", "ref": "main"},
+      "licencia": "Anthropic"
+    },
+    {
+      "id": "pptx", "icono": "slideshow",
+      "nombre": {"es": "Presentaciones", "en": "Presentations"},
+      "detalle": {"es": "Arma y edita presentaciones de PowerPoint", "en": "Build and edit PowerPoint decks"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/pptx", "ref": "main"},
+      "licencia": "Anthropic"
+    },
+    {
+      "id": "doc-coauthoring", "icono": "edit_note",
+      "nombre": {"es": "Redactar en equipo", "en": "Doc co-authoring"},
+      "detalle": {"es": "Escribe contigo propuestas, informes y documentos largos paso a paso", "en": "Writes proposals, reports and long documents with you, step by step"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/doc-coauthoring", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "internal-comms", "icono": "campaign",
+      "nombre": {"es": "Comunicados y correos", "en": "Work updates & emails"},
+      "detalle": {"es": "Informes de avance, boletines, correos y actas del trabajo", "en": "Status reports, newsletters, emails and meeting notes"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/internal-comms", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "canvas-design", "icono": "palette",
+      "nombre": {"es": "Pósters y afiches", "en": "Posters & visuals"},
+      "detalle": {"es": "Diseña afiches, invitaciones e imágenes en PNG o PDF", "en": "Designs posters, invitations and images as PNG or PDF"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/canvas-design", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "theme-factory", "icono": "format_paint",
+      "nombre": {"es": "Temas y estilos", "en": "Theme factory"},
+      "detalle": {"es": "Da colores y tipografías coherentes a documentos y presentaciones", "en": "Applies consistent colors and fonts to documents and slides"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/theme-factory", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "archify", "icono": "schema",
+      "nombre": {"es": "Diagramas", "en": "Diagrams"},
+      "detalle": {"es": "Diagramas de planes, trámites, procesos y sistemas en HTML interactivo", "en": "Diagrams of plans, procedures, processes and systems as interactive HTML"},
+      "fuente": {"repo": "tt-a1i/archify", "ruta": "archify", "ref": "main"},
+      "licencia": "MIT"
+    },
+    {
+      "id": "skill-creator", "icono": "auto_fix_high",
+      "nombre": {"es": "Crear habilidades", "en": "Skill creator"},
+      "detalle": {"es": "Te ayuda a crear tus propias habilidades para tus tareas de siempre", "en": "Helps you create your own skills for your recurring tasks"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/skill-creator", "ref": "main"},
+      "licencia": "Apache-2.0"
+    }
+  ],
+  "mas": [
+    {
+      "id": "transcribe", "icono": "mic",
+      "nombre": {"es": "Transcribir audio", "en": "Transcribe audio"},
+      "detalle": {"es": "Pasa audios y reuniones a texto (Codex, usa tu clave de OpenAI)", "en": "Turns audio and meetings into text (Codex, uses your OpenAI key)"},
+      "fuente": {"repo": "openai/skills", "ruta": "skills/.curated/transcribe", "ref": "main"},
+      "agentes": ["codex"], "licencia": "Apache-2.0"
+    },
+    {
+      "id": "frontend-design", "icono": "web",
+      "nombre": {"es": "Diseño web", "en": "Frontend design"},
+      "detalle": {"es": "Páginas e interfaces con diseño cuidado", "en": "Web pages and interfaces with polished design"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/frontend-design", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "algorithmic-art", "icono": "brush",
+      "nombre": {"es": "Arte generativo", "en": "Algorithmic art"},
+      "detalle": {"es": "Arte con código (p5.js): fondos, patrones y animaciones", "en": "Art with code (p5.js): backgrounds, patterns and animations"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/algorithmic-art", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "webapp-testing", "icono": "fact_check",
+      "nombre": {"es": "Probar páginas web", "en": "Web app testing"},
+      "detalle": {"es": "Prueba sitios web con un navegador automático (Playwright)", "en": "Tests websites with an automated browser (Playwright)"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/webapp-testing", "ref": "main"},
+      "licencia": "Apache-2.0"
+    },
+    {
+      "id": "mcp-builder", "icono": "hub",
+      "nombre": {"es": "Crear conectores MCP", "en": "MCP builder"},
+      "detalle": {"es": "Guía para crear servidores MCP que conectan la IA con tus apps", "en": "Guide to build MCP servers that connect AI to your apps"},
+      "fuente": {"repo": "anthropics/skills", "ruta": "skills/mcp-builder", "ref": "main"},
+      "licencia": "Apache-2.0"
+    }
+  ]
+}
