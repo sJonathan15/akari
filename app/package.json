@@ -1,14 +1,17 @@
 {
   "name": "akari",
   "version": "0.1.0",
-  "description": "Floating Linux desktop capsules: Claude Code & Codex usage, device batteries with 3D models, and AI skills",
+  "description": "Floating desktop bubbles for Linux and Windows: Claude Code & Codex usage, device batteries with 3D models, and AI skills",
   "homepage": "https://github.com/sJonathan15/akari",
+  "repository": "github:sJonathan15/akari",
   "license": "MIT",
   "author": "sJonathan15 <150947214+sJonathan15@users.noreply.github.com>",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "appimage": "electron-builder --linux AppImage"
+    "appimage": "electron-builder --linux AppImage",
+    "python-windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/python-windows.ps1",
+    "windows": "npm run python-windows && electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -17,7 +20,6 @@
   "build": {
     "appId": "io.github.sjonathan15.akari",
     "productName": "akari",
-    "artifactName": "akari-${arch}.AppImage",
     "files": [
       "main.js",
       "preload.js",
@@ -30,6 +32,13 @@
         "filter": [
           "**/*",
           "!__pycache__"
+        ]
+      },
+      {
+        "from": "../bin",
+        "to": "akari/bin",
+        "filter": [
+          "akari.py"
         ]
       },
       {
@@ -53,6 +62,34 @@
       "category": "Utility",
       "synopsis": "AI usage, device batteries and AI skills at a glance",
       "syncDesktopName": true
+    },
+    "appImage": {
+      "artifactName": "akari-${arch}.AppImage"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../iconos/akari.png",
+      "extraResources": [
+        {
+          "from": "build/python",
+          "to": "python"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "akari-setup-${arch}.exe",
+      "shortcutName": "akari",
+      "createDesktopShortcut": false,
+      "deleteAppDataOnUninstall": false
     }
   },
   "desktopName": "akari.desktop"

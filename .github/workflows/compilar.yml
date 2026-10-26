@@ -1,0 +1,107 @@
+# Pruebas del servicio en Linux y en Windows de verdad, y compilación de la app:
+#   * en cada push / pull request: pruebas (y en Windows, la lectura real de PnP y la batería);
+#   * con una etiqueta v* (p. ej. v0.2.0): AppImage x86_64 + arm64 e instalador de Windows,
+#     publicados en Releases (install.sh e install.ps1 bajan de ahí la última versión).
+name: compilar
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: dbus-daemon (para probar el cliente D-Bus propio)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y --no-install-recommends dbus
+      - name: Pruebas del servicio
+        run: python -m unittest discover -v -s pruebas/servicio -p "prueba_*.py"
+      - name: Lo que ve akari en este equipo
+        run: python bin/akari.py escritorio
+
+  appimage:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: pruebas
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npx electron-builder --linux AppImage --x64 --arm64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: app/dist/*.AppImage
+
+  windows:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: pruebas
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Python embebido
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/python-windows.ps1
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: El servicio empaquetado arranca con su Python
+        shell: pwsh
+        run: |
+          $res = "dist/win-unpacked/resources"
+          $p = Start-Process -PassThru -WindowStyle Hidden "$res/python/python.exe" -ArgumentList "$res/akari/bin/akari.py", "servicio"
+          $ok = $false
+          foreach ($i in 1..40) {
+            try { Invoke-RestMethod http://127.0.0.1:47830/api/estado | Out-Null; $ok = $true; break } catch { Start-Sleep -Milliseconds 500 }
+          }
+          Stop-Process -Id $p.Id -Force
+          if (-not $ok) { throw "el servicio no respondió" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: app/dist/akari-setup-*.exe
+
+  publicar:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [appimage, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

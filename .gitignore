@@ -6,3 +6,4 @@ app/dist/
 .venv/
 *.tmp
 .akari.json
+app/build/
