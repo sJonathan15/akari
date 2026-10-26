@@ -1,12 +1,12 @@
 # Pruebas del servicio en Linux y en Windows de verdad, y compilación de la app:
-#   * en cada push / pull request: pruebas (y en Windows, la lectura real de PnP y la batería);
+#   * en cada push (cualquier rama) y pull request: pruebas (y en Windows, la lectura real de PnP y la batería);
 #   * con una etiqueta v* (p. ej. v0.2.0): AppImage x86_64 + arm64 e instalador de Windows,
 #     publicados en Releases (install.sh e install.ps1 bajan de ahí la última versión).
 name: compilar
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
