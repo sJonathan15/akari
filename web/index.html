@@ -10,16 +10,17 @@
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
-  <!-- vista "capsula": la pastilla flotante de la app (GNOME, X11…); vista normal: el panel -->
-  <div id="capsula" class="capsula" hidden>
-    <button class="pastilla" id="pastilla" type="button">
-      <span class="anillo-mini" id="cap-anillo"></span>
-      <span id="cap-ia" class="num">—</span>
-      <span class="sep"></span>
-      <span id="cap-disp" class="dispositivos-mini"></span>
-      <span class="sep"></span>
-      <span class="icono relleno">auto_awesome</span><span id="cap-hab" class="num">—</span>
-    </button>
+  <!-- vista "burbuja": una de las tres burbujas flotantes de la app (Windows, X11, GNOME…), igual
+       que las cápsulas de Quickshell; la sección del panel que le toca se mueve a su cuerpo -->
+  <div id="burbuja" class="burbuja" hidden>
+    <div class="forma" id="b-forma">
+      <div class="b-cabecera" id="b-cabecera"><div class="b-fila" id="b-fila"></div></div>
+      <div class="b-cuerpo" id="b-cuerpo">
+        <div class="b-contenido" id="b-contenido">
+          <button class="mas b-panel" id="b-panel" type="button"><span class="icono">open_in_new</span><span data-t="Abrir panel completo|Open full panel"></span></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <main id="panel" class="panel" hidden>

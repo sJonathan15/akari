@@ -1,3 +1,8 @@
-// Puente mínimo para la pastilla: un clic abre o cierra el panel.
+// Puente mínimo entre las páginas de akari y la app: abrir el panel y mover/abrir las burbujas.
 const { contextBridge, ipcRenderer } = require("electron");
-contextBridge.exposeInMainWorld("akari", { alternarPanel: () => ipcRenderer.send("alternar-panel") });
+contextBridge.exposeInMainWorld("akari", {
+  alternarPanel: () => ipcRenderer.send("alternar-panel"),
+  burbuja: (accion, datos) => ipcRenderer.send("burbuja", String(accion), datos || {}),
+  alCambiarForma: (fn) => ipcRenderer.on("burbuja:forma", (_e, forma) => fn(forma)),
+  sistema: process.platform,
+});

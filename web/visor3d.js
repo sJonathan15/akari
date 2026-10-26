@@ -136,7 +136,8 @@ export class Visor {
     this.aparicion += (1 - this.aparicion) * (1 - Math.exp(-dt * 8));
     this.giro.rotation.y = this.angulo * RAD;
     this.inclinacion.scale.setScalar(0.9 + 0.1 * this.aparicion);
-    if (this.lienzo.offsetParent) this.render.render(this.escena, this.camara);
+    // pausado: la burbuja de dispositivos está cerrada (no gastar GPU en algo que no se ve)
+    if (this.lienzo.offsetParent && !this.pausado) this.render.render(this.escena, this.camara);
     requestAnimationFrame((x) => this._cuadro(x));
   }
 }

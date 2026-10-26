@@ -1,4 +1,5 @@
-/* akari: misma paleta que las cápsulas (Material 3 oscuro) */
+/* akari: misma paleta que las cápsulas (Material 3 oscuro); el servicio la cambia por los
+   colores del escritorio (Caelestia, KDE, GNOME, pywal, Windows) — ver akari/tema.py */
 @font-face {
   font-family: "Material Symbols Rounded";
   src: local("Material Symbols Rounded"), url("vendor/MaterialSymbolsRounded.woff2") format("woff2");
@@ -11,6 +12,7 @@
   --sobre-primario: #1e2d60;
   --cont-secundario: #41465c;
   --sobre-cont-secundario: #e0e2f0;
+  --secundario: #c1c5e0;
   --terciario: #f1b3e6;
   --error: #ffb4ab;
   --exito: #b5ccba;
@@ -169,7 +171,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border-radius: 14px; text-align: left;
   transition: background 150ms;
 }
-.fila:hover { background: rgba(41, 42, 46, 0.6); }
+.fila:hover { background: color-mix(in srgb, var(--contenedor-alto) 60%, transparent); }
 .fila.elegida { background: var(--contenedor-alto); }
 .fila .circulo { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; background: var(--cont-secundario); color: var(--sobre-cont-secundario); flex: none; }
 .fila.elegida .circulo { background: var(--primario); color: var(--sobre-primario); }
@@ -211,19 +213,82 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .listo:hover .icono::before { content: "delete"; }
 .mas { align-self: center; color: var(--primario); font-weight: 500; font-size: 13px; padding: 6px; }
 .uso { padding: 3px 9px; border-radius: 11px; font-size: 11px; color: var(--contorno); }
-.uso.si { background: rgba(183, 196, 255, 0.18); color: var(--primario); }
+.uso.si { background: color-mix(in srgb, var(--primario) 18%, transparent); color: var(--primario); }
 
-/* ---------------------------------------------------------------- pastilla (app flotante) */
-body.vista-capsula { background: transparent; min-height: 0; overflow: hidden; }
-.capsula { display: flex; padding: 0; }
-.pastilla {
-  display: flex; align-items: center; gap: 8px; width: 100vw; height: 100vh; padding: 0 14px;
-  background: rgba(19, 19, 23, 0.94); border-radius: 50vh; font-size: 13px; -webkit-app-region: drag;
-  border: 1px solid var(--contorno-var);
+/* ---------------------------------------------------------------- burbujas (app de escritorio)
+   La ventana mide lo que la burbuja necesita; .forma es la burbuja y se anima dentro de ella
+   desde la cápsula cerrada hasta llenar la ventana (las medidas las pone app.js). */
+.transparente, .transparente body { background: transparent; }
+body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select: none; }
+.burbuja { position: fixed; inset: 0; }
+.forma {
+  position: absolute; overflow: hidden;
+  background: color-mix(in srgb, var(--superficie) 94%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--contorno-var) 70%, transparent);
+  transition-property: width, height, top, border-radius;
+  transition-duration: 400ms; transition-timing-function: var(--curva);
 }
-.pastilla > * { -webkit-app-region: no-drag; }
-.pastilla .sep { width: 1px; height: 16px; background: var(--contorno-var); }
-.anillo-mini { width: 18px; height: 18px; }
-.dispositivos-mini { display: flex; gap: 8px; }
-.dispositivos-mini span { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--texto-var); }
-.dispositivos-mini .icono { font-size: 16px; }
+.forma.quieta, .forma.quieta * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .forma { transition: none; } }
+
+.b-cabecera {
+  position: absolute; left: 0; right: 0; top: 0; height: var(--b-alto, 38px);
+  cursor: grab; touch-action: none;
+}
+.b-cabecera.arrastrando { cursor: grabbing; }
+.b-hacia-arriba .b-cabecera { top: auto; bottom: 0; }
+.b-fila {
+  display: flex; align-items: center; gap: 8px; height: var(--b-alto, 38px); padding: 0 14px;
+  white-space: nowrap; overflow: hidden;
+}
+.b-fila .anillo { width: 22px; height: 22px; }
+.b-num { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.b-relleno { flex: 1; }
+.b-centro { flex: 1; text-align: center; }
+.b-chip { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 7px; border-radius: 11px; font-size: 11px; font-weight: 500; }
+.b-chip .icono { font-size: 13px; }
+.b-punto { width: 7px; height: 7px; border-radius: 4px; background: var(--contorno-var); flex: none; }
+.b-punto.late { background: var(--terciario); animation: latir 1.2s ease-in-out infinite; }
+@keyframes latir { 50% { opacity: 0.25; } }
+.b-disp { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.b-disp .icono { font-size: 17px; }
+.b-disp.late .icono { animation: latir 1.4s ease-in-out infinite; }
+.b-estrella { font-size: 19px; color: var(--primario); }
+.b-cabecera.alerta::after {      /* batería baja: línea bajo la cápsula cerrada */
+  content: ""; position: absolute; left: 30%; right: 30%; bottom: 0; height: 2px; border-radius: 1px; background: var(--error);
+}
+.forma.abierta .b-cabecera.alerta::after { display: none; }
+
+.b-cuerpo {
+  position: absolute; top: var(--b-alto, 38px); left: 0; width: var(--b-ancho, 380px);
+  height: calc(100% - var(--b-alto, 38px)); overflow-y: auto; overflow-x: hidden;
+  opacity: 0; pointer-events: none; transform: translateY(-12px);
+  transition: opacity 250ms var(--curva), transform 400ms var(--curva);
+  scrollbar-width: thin; scrollbar-color: var(--contorno-var) transparent;
+}
+.forma.abierta .b-cuerpo { opacity: 1; pointer-events: auto; transform: none; transition-delay: 80ms; }
+.b-hacia-izquierda .b-cuerpo { left: auto; right: 0; }
+.b-hacia-arriba .b-cuerpo { top: 0; transform: translateY(12px); }
+.b-contenido { display: flex; flex-direction: column; padding: 2px 0 10px; }
+.vista-burbuja .pagina { gap: 8px; padding: 0 10px; animation: none; }
+.vista-burbuja .tarjeta { padding: 12px; }
+.vista-burbuja .escenario { height: 214px; padding: 0; }
+.vista-burbuja .rejilla { grid-template-columns: 1fr; }
+.vista-burbuja .fila-tarjetas { grid-template-columns: 1fr; }
+.b-panel { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
+.b-panel .icono { font-size: 16px; }
+
+/* pestaña vertical (pegada a un borde lateral): la misma cabecera, girada */
+.b-vertical .b-cabecera {
+  left: 0; right: auto; top: var(--b-tab-y, 0px); width: var(--b-alto, 38px); height: var(--b-largo, 156px);
+  transition: top 400ms var(--curva);
+}
+.b-vertical.b-derecha .b-cabecera { left: auto; right: 0; }
+.b-vertical .b-fila {
+  position: absolute; left: 50%; top: 50%; width: var(--b-largo, 156px);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+.b-vertical.b-derecha .b-fila { transform: translate(-50%, -50%) rotate(90deg); }
+.b-vertical .b-cuerpo { top: 10px; left: var(--b-alto, 38px); height: calc(100% - 20px); transform: translateX(-12px); }
+.b-vertical.b-derecha .b-cuerpo { left: auto; right: var(--b-alto, 38px); transform: translateX(12px); }
+.b-vertical .forma.abierta .b-cuerpo { transform: none; }

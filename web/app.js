@@ -1,9 +1,13 @@
 // Panel de akari. Recibe el estado del servicio por SSE (/eventos) y dibuja las tres
 // secciones: IA (Claude Code / Codex), dispositivos (con 3D) y habilidades.
-// Con ?vista=capsula dibuja solo la pastilla flotante de la app de escritorio.
+// Con ?vista=burbuja&c=ia|dispositivos|habilidades dibuja una de las burbujas flotantes de la
+// app de escritorio: la misma sección del panel, con su cabecera y su animación de apertura.
 import { Visor } from "./visor3d.js";
 
 const vista = new URLSearchParams(location.search).get("vista");
+const SECCIONES = { ia: ["ia", "p-ia"], dispositivos: ["disp", "p-disp"], habilidades: ["hab", "p-hab"] };
+const pedida = new URLSearchParams(location.search).get("c");
+const burbuja = vista === "burbuja" ? (SECCIONES[pedida] ? pedida : "ia") : null;
 let E = null;                         // último estado
 let idioma = navigator.language.startsWith("es") ? "es" : "en";
 const ui = { pagina: "ia", proveedor: "", dispositivo: "", hab: "recomendadas", verMas: false, respuesta: "" };
@@ -70,11 +74,36 @@ function nivel(d) {
 }
 const colorNivel = (n) => VAR({ ok: "--exito", medio: "--terciario", bajo: "--error", cable: "--primario", nada: "--contorno" }[n]);
 
+// ------------------------------------------------------------------ tema
+// Colores del escritorio (Caelestia, KDE, GNOME, pywal, Windows…) que calcula el servicio.
+const VARIABLES = {
+  primary: "--primario", onPrimary: "--sobre-primario", secondaryContainer: "--cont-secundario",
+  onSecondaryContainer: "--sobre-cont-secundario", tertiary: "--terciario", error: "--error", success: "--exito",
+  surface: "--superficie", onSurface: "--texto", onSurfaceVariant: "--texto-var", surfaceContainer: "--contenedor",
+  surfaceContainerHigh: "--contenedor-alto", surfaceContainerHighest: "--contenedor-max", outline: "--contorno",
+  outlineVariant: "--contorno-var", secondary: "--secundario",
+};
+let temaAplicado = "";
+function aplicarTema(tema) {
+  const colores = (tema && tema.colores) || {};
+  const clave = JSON.stringify(colores);
+  if (clave === temaAplicado) return;
+  temaAplicado = clave;
+  for (const [k, v] of Object.entries(VARIABLES)) {
+    if (/^#[0-9a-f]{6}$/i.test(colores[k] || "")) document.documentElement.style.setProperty(v, colores[k]);
+  }
+}
+
 // ------------------------------------------------------------------ IA
-function dibujarIA() {
+function proveedorActual() {
   const ia = E.ia || {};
   const provs = ["claude", "codex"].filter((p) => ia[p]);
-  const prov = provs.includes(ui.proveedor) ? ui.proveedor : ia.principal || provs[0] || "";
+  return { provs, prov: provs.includes(ui.proveedor) ? ui.proveedor : ia.principal || provs[0] || "" };
+}
+
+function dibujarIA() {
+  const ia = E.ia || {};
+  const { provs, prov } = proveedorActual();
   const p = ia[prov];
   $("#sin-ia").hidden = !!prov;
   $("#ia-contenido").hidden = !prov;
@@ -177,7 +206,7 @@ function dibujarDisp() {
     $("#d-detalles").innerHTML = d.detalles.slice(0, 5).map(([k, v]) => `<div class="detalle"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join("")
       + (d.horas_restantes ? `<div class="detalle" style="color:var(--primario)">${t("A este ritmo quedan unas ", "At this rate, about ")}${d.horas_restantes} h</div>` : "")
       + (d.ayuda ? `<p class="tenue chico" style="line-height:1.4">${esc(d.ayuda)}</p>` : "")
-      + `<div class="botones">${d.acciones.map((a, i) => `<button class="boton ${i === 0 ? "principal" : ""}" data-accion="${a.id}">${icono({ conectar: "bluetooth_connected", desconectar: "bluetooth_disabled", sonar: "ring_volume" }[a.id] || "bolt")}${esc(a.etiqueta)}</button>`).join("")}</div>
+      + `<div class="botones">${d.acciones.map((a, i) => `<button class="boton ${i === 0 ? "principal" : ""}" data-accion="${a.id}">${icono({ conectar: "bluetooth_connected", desconectar: "bluetooth_disabled", sonar: "ring_volume", ajustes_bt: "settings_bluetooth" }[a.id] || "bolt")}${esc(a.etiqueta)}</button>`).join("")}</div>
       <div class="botones"><button class="enlace" data-accion="tipo">${icono("swap_horiz")}${t("Cambiar tipo", "Change type")}</button>
         <button class="enlace" data-accion="ocultar">${icono("visibility_off")}${t("Ocultar", "Hide")}</button>
         <button class="enlace" data-accion="probar">${icono("notifications")}${t("Probar aviso", "Test alert")}</button></div>
@@ -224,24 +253,66 @@ function dibujarHab() {
   }
 }
 
-// ------------------------------------------------------------------ pastilla
-function dibujarCapsula() {
-  const ia = E.ia || {};
-  const p = ia[ia.principal];
-  const v5 = p && p.limites.cinco_horas;
-  $("#cap-anillo").innerHTML = anillo(v5 ? v5.libre / 100 : 0, colorLibre(v5), 18, 4);
-  $("#cap-ia").textContent = v5 ? Math.round(v5.libre) + "%" : "—";
-  $("#cap-ia").style.color = colorLibre(v5);
-  $("#cap-disp").innerHTML = ((E.dispositivos || {}).dispositivos || []).filter((d) => d.conectado).slice(0, 4)
-    .map((d) => `<span style="color:${colorNivel(nivel(d))}">${icono(ICONOS_DISP[d.tipo] || "devices", true)}${d.bateria != null ? d.bateria + "%" : ""}</span>`).join("");
-  $("#cap-hab").textContent = E.habilidades ? E.habilidades.total : "—";
+// ------------------------------------------------------------------ cabecera de las burbujas
+// Lo mismo que muestran cerradas las cápsulas de Quickshell (capsulas/Capsula*.qml).
+function textoCorto(d) {
+  if (!d || !d.conectado) return "—";
+  if (d.bateria != null) return d.bateria + "%";
+  return (d.conexion || "").includes("USB") ? "USB" : "OK";
+}
+const FAMILIAS_CHIP = { Opus: "--primario", Fable: "--terciario", Sonnet: "--secundario", Haiku: "--exito", GPT: "--exito" };
+
+let cabeceraDibujada = "";
+function dibujarCabecera() {
+  // solo se toca el DOM si cambió algo (así no se reinicia la animación del punto que late)
+  const html = htmlCabecera();
+  if (html === cabeceraDibujada) return;
+  cabeceraDibujada = html;
+  $("#b-fila").innerHTML = html;
+}
+
+function htmlCabecera() {
+  if (!E) return `<span class="tenue chico b-centro">${t("Iniciando akari…", "Starting akari…")}</span>`;
+  if (burbuja === "ia") {
+    const ia = E.ia || {};
+    const { prov } = proveedorActual();
+    const p = ia[prov];
+    const v5 = p && p.limites.cinco_horas;
+    const fam = p ? familia(prov, p.modelo_actual) : "";
+    const ultima = p && p.cinta && p.cinta[0];
+    const trabajando = !!ultima && ahora() - ultima.t < 25;
+    const color = colorLibre(v5);
+    const colorF = FAMILIAS_CHIP[fam] ? VAR(FAMILIAS_CHIP[fam]) : VAR("--texto-var");
+    return `${anillo(v5 ? v5.libre / 100 : 0, color, 22, 4)}
+      <span class="b-num" style="color:${color}">${v5 ? Math.round(v5.libre) + "%" : "—"}</span>
+      <span class="tenue chico">${!prov ? t("sin Claude ni Codex", "no Claude or Codex") : v5 ? t("libre", "left") : t("sin lectura", "no data")}</span>
+      <span class="b-relleno"></span>
+      ${fam ? `<span class="b-chip" style="color:${colorF};background:color-mix(in srgb, ${colorF} 16%, transparent)">${icono(ICONO_FAM[fam] || "smart_toy", true)}${esc(fam)}</span>` : ""}
+      ${v5 && v5.reinicia ? `<span class="mono chico tenue">${cuenta(v5.reinicia - ahora())}</span>` : ""}
+      <i class="b-punto${trabajando ? " late" : ""}"></i>`;
+  } else if (burbuja === "dispositivos") {
+    const lista = (E.dispositivos || {}).dispositivos || [];
+    const alerta = lista.some((d) => nivel(d) === "bajo" && !d.cargando);
+    $("#b-cabecera").classList.toggle("alerta", alerta);
+    return lista.slice(0, 4).map((d) => {
+      const nv = nivel(d);
+      return `<span class="b-disp${nv === "bajo" && !d.cargando ? " late" : ""}">${icono(ICONOS_DISP[d.tipo] || "devices", d.conectado).replace('class="icono', `style="color:${colorNivel(nv)}" class="icono`)}
+        <span class="mono chico" style="color:${nv === "nada" ? VAR("--contorno") : VAR("--texto-var")}">${textoCorto(d)}${d.cargando ? "⚡" : ""}</span></span>`;
+    }).join("") || `<span class="tenue chico b-centro">${t("Sin periféricos todavía", "No devices yet")}</span>`;
+  } else {
+    const H = E.habilidades;
+    const instalando = !!H && [...H.recomendadas, ...H.mas].some((r) => r.tarea && r.tarea.estado === "instalando");
+    return `${icono("auto_awesome", true).replace('class="icono', `class="icono b-estrella${instalando ? " girando" : ""}`)}
+      <span class="b-num">${H ? H.total : "—"}</span><span class="tenue chico">${t("habilidades", "skills")}</span>`;
+  }
 }
 
 // ------------------------------------------------------------------ general
 function dibujar() {
   if (!E) return;
+  aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
-  if (vista === "capsula") return dibujarCapsula();
+  if (burbuja) dibujarCabecera();
   if (ui.pagina === "ia") dibujarIA();
   if (ui.pagina === "disp") dibujarDisp();
   if (ui.pagina === "hab") dibujarHab();
@@ -297,7 +368,7 @@ document.addEventListener("click", async (e) => {
     const total = (((h * 60 + m + Number(b.dataset.d)) % 1440) + 1440) % 1440;
     return enviar("/api/ia/activador", { [b.dataset.hora]: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` });
   }
-  if (b.id === "pastilla" && window.akari) window.akari.alternarPanel();
+  if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
 });
 document.addEventListener("submit", (e) => {
   if (e.target.id !== "form-activar") return;
@@ -308,9 +379,129 @@ document.addEventListener("submit", (e) => {
   campo.blur();
 });
 
-if (vista === "capsula") {
-  document.body.classList.add("vista-capsula");
-  $("#capsula").hidden = false;
+// ------------------------------------------------------------------ burbuja
+// La app (app/main.js) dueña de la ventana dice qué forma tiene (abierta, vertical, hacia dónde
+// se despliega…); aquí se anima la forma dentro de la ventana y se avisa de lo que hace el
+// puntero: pasar por encima abre, clic en la cabecera la deja fija, arrastrar la mueve.
+function iniciarBurbuja() {
+  const forma = $("#b-forma"), cab = $("#b-cabecera"), contenido = $("#b-contenido");
+  const enviar = (accion, datos) => window.akari && window.akari.burbuja(accion, datos);
+  let F = null, fijada = false, cierre = null, arrastre = null, recienMovida = false;
+
+  document.documentElement.classList.add("transparente");
+  document.body.classList.add("vista-burbuja");
+  $("#burbuja").hidden = false;
+  const [pagina, seccion] = SECCIONES[burbuja];
+  ui.pagina = pagina;
+  $("#" + seccion).classList.add("activa");
+  contenido.prepend($("#" + seccion));
+
+  const px = (v) => (typeof v === "number" ? v + "px" : v);
+  function poner(estilo) { for (const [k, v] of Object.entries(estilo)) forma.style[k] = px(v); }
+  function sinTransicion(fn) {
+    forma.classList.add("quieta");
+    fn();
+    void forma.offsetWidth;             // aplicar ya, antes de volver a animar
+    forma.classList.remove("quieta");
+  }
+  function esquinas(f, abierta) {
+    const r = abierta ? 28 : f.altoCerrado / 2;
+    const arriba = f.pegadaArriba ? 0 : r, abajo = f.pegadaAbajo ? 0 : r;
+    const izq = f.borde === "izquierda", der = f.borde === "derecha";
+    return {
+      borderTopLeftRadius: izq ? 0 : arriba, borderBottomLeftRadius: izq ? 0 : abajo,
+      borderTopRightRadius: der ? 0 : arriba, borderBottomRightRadius: der ? 0 : abajo,
+    };
+  }
+  function anclas(f) {
+    const derecha = f.vertical ? f.borde === "derecha" : !f.haciaDerecha;
+    const abajo = !f.vertical && f.haciaArriba;
+    return { left: derecha ? "auto" : 0, right: derecha ? 0 : "auto", top: abajo ? "auto" : 0, bottom: abajo ? 0 : "auto" };
+  }
+  function cerradaEn(f) {
+    return { ...anclas(f), ...(f.vertical ? { top: f.cerrada.y } : {}), width: f.cerrada.w, height: f.cerrada.h, ...esquinas(f, false) };
+  }
+
+  function aplicarForma(f) {
+    const anterior = F;
+    F = f;
+    const b = document.body.classList;
+    b.toggle("b-vertical", f.vertical);
+    b.toggle("b-izquierda", f.borde === "izquierda");
+    b.toggle("b-derecha", f.borde === "derecha");
+    b.toggle("b-hacia-arriba", !f.vertical && f.haciaArriba);
+    b.toggle("b-hacia-izquierda", !f.vertical && !f.haciaDerecha);
+    document.documentElement.style.setProperty("--b-alto", f.altoCerrado + "px");
+    document.documentElement.style.setProperty("--b-largo", f.largoV + "px");
+    document.documentElement.style.setProperty("--b-ancho", f.anchoAbierto + "px");
+    document.documentElement.style.setProperty("--b-tab-y", (f.abierta && f.vertical ? f.cerrada.y : 0) + "px");
+    if (f.ventanaCerrada) {
+      sinTransicion(() => poner({ left: 0, top: 0, right: "auto", bottom: "auto", width: f.cerrada.w, height: f.cerrada.h, ...esquinas(f, false) }));
+    } else {
+      if (!anterior || anterior.ventanaCerrada) sinTransicion(() => poner(cerradaEn(f)));
+      poner(f.abierta ? { ...anclas(f), width: "100%", height: "100%", ...esquinas(f, true) } : cerradaEn(f));
+    }
+    forma.classList.toggle("abierta", f.abierta);
+    if (visor) visor.pausado = !f.abierta;
+  }
+  window.akari && window.akari.alCambiarForma(aplicarForma);
+
+  // escribiendo en la burbuja de IA: no se cierra aunque el puntero salga
+  const reteniendo = () => document.activeElement && document.activeElement.matches("input") && forma.contains(document.activeElement);
+  const programarCierre = () => {
+    clearTimeout(cierre);
+    cierre = setTimeout(() => { if (!fijada && !reteniendo() && !forma.matches(":hover")) enviar("cerrar"); }, 450);
+  };
+  forma.addEventListener("mouseenter", () => { clearTimeout(cierre); if (!arrastre) enviar("abrir"); });
+  forma.addEventListener("mouseleave", programarCierre);
+  document.addEventListener("focusout", () => setTimeout(programarCierre, 0));
+
+  // la altura del contenido decide la de la burbuja abierta
+  new ResizeObserver(() => enviar("alto", { alto: contenido.offsetHeight })).observe(contenido);
+
+  // arrastrar desde la cabecera; un clic la fija; doble clic, a su sitio de fábrica
+  cab.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    cab.setPointerCapture(e.pointerId);
+    arrastre = { x: e.screenX, y: e.screenY, moviendo: false };
+  });
+  cab.addEventListener("pointermove", (e) => {
+    if (!arrastre) return;
+    const dx = e.screenX - arrastre.x, dy = e.screenY - arrastre.y;
+    if (!arrastre.moviendo && Math.hypot(dx, dy) < 6) return;
+    if (!arrastre.moviendo) {
+      arrastre.moviendo = true;
+      cab.classList.add("arrastrando");
+      enviar("mover-inicio");
+    }
+    enviar("mover", { dx, dy });
+  });
+  const soltar = () => {
+    if (!arrastre) return;
+    if (arrastre.moviendo) {
+      enviar("soltar");
+      recienMovida = true;
+      setTimeout(() => { recienMovida = false; }, 50);
+    }
+    cab.classList.remove("arrastrando");
+    arrastre = null;
+  };
+  cab.addEventListener("pointerup", soltar);
+  cab.addEventListener("pointercancel", soltar);
+  cab.addEventListener("click", () => {
+    if (recienMovida) return;
+    fijada = !fijada;
+    cab.classList.toggle("fijada", fijada);
+    if (fijada || forma.matches(":hover")) enviar("abrir"); else enviar("cerrar");
+  });
+  cab.addEventListener("dblclick", () => enviar("fabrica"));
+
+  dibujarCabecera();
+  setInterval(dibujarCabecera, 1000);     // cuenta regresiva y punto que late
+}
+
+if (burbuja) {
+  iniciarBurbuja();
 } else {
   $("#panel").hidden = false;
   const p = new URLSearchParams(location.search).get("pagina");
