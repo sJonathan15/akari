@@ -23,8 +23,8 @@ jobs:
         python: ["3.9", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: dbus-daemon (para probar el cliente D-Bus propio)
@@ -33,7 +33,9 @@ jobs:
       - name: Pruebas del servicio
         run: python -m unittest discover -v -s pruebas/servicio -p "prueba_*.py"
       - name: Lo que ve akari en este equipo
-        run: python bin/akari.py escritorio
+        run: |
+          python bin/akari.py escritorio
+          python bin/akari.py guia
 
   appimage:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
@@ -43,8 +45,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -64,8 +66,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

@@ -344,6 +344,12 @@ def resumen():
 
 
 def main():
+    # la consola de Windows usa cp1252 / cp850: sin esto, "→", "★" o "✓" la hacen fallar
+    for flujo in (sys.stdout, sys.stderr):
+        try:
+            flujo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     orden = sys.argv[1] if len(sys.argv) > 1 else "servicio"
     if orden == "servicio":
         from .servidor import main as servir
