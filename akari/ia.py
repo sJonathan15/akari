@@ -14,6 +14,8 @@ los frontends (cápsulas, panel, extensión de GNOME) solo dibujan el resultado.
 import base64
 import json
 import os
+import re
+import shutil
 import subprocess
 import threading
 import time
@@ -21,7 +23,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .comun import CACHE, CONFIG, HOME, IDIOMA, escribir_json, leer_json, notificar, t
+from .comun import CACHE, CONFIG, HOME, IDIOMA, SIN_VENTANA, escribir_json, leer_json, notificar, t
 
 CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", HOME / ".claude"))
 CLAUDE_JSON = HOME / ".claude.json"
@@ -126,7 +128,7 @@ class Lector:
 
 class LectorClaude(Lector):
     def procesar(self, archivo, lineas):
-        agente = "/subagents/" in archivo
+        agente = "subagents" in Path(archivo).parts
         cambio = False
         for linea in lineas:
             if b'"usage"' not in linea or b'"assistant"' not in linea:
@@ -257,7 +259,7 @@ def sumar(registros):
 
 def guardar_lectura(datos):
     SESIONES.mkdir(parents=True, exist_ok=True)
-    sesion = str(datos.get("session_id") or "sin-sesion").replace("/", "_")
+    sesion = re.sub(r"[^\w.-]", "_", str(datos.get("session_id") or "sin-sesion"))
     datos["_recibido"] = time.time()
     tmp = SESIONES / f".{sesion}.tmp"
     tmp.write_text(json.dumps(datos), encoding="utf-8")
@@ -449,7 +451,9 @@ class Activador:
 
     def _enviar(self, mensaje, automatico):
         propio = bool(mensaje)
-        orden = ["claude", "-p", mensaje or "Reply with just the word: ready", "--model", self.ajustes["modelo"],
+        # el mensaje va por la entrada estándar: en Windows `claude` puede ser un .cmd y cmd.exe
+        # interpretaría & | < > dentro de un argumento
+        orden = [shutil.which("claude") or "claude", "-p", "--model", self.ajustes["modelo"],
                  # sin hooks ni MCP del usuario y sin herramientas: desde la cápsula solo se conversa
                  "--setting-sources", "project", "--strict-mcp-config", "--tools", "",
                  "--no-session-persistence", "--output-format", "stream-json", "--verbose"]
@@ -460,7 +464,9 @@ class Activador:
         texto, limites, error = [], {}, ""
         try:
             CARPETA_PING.mkdir(parents=True, exist_ok=True)
-            proc = subprocess.run(orden, cwd=CARPETA_PING, capture_output=True, text=True, timeout=180)
+            proc = subprocess.run(orden, cwd=CARPETA_PING, input=mensaje or "Reply with just the word: ready",
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                  timeout=180, **SIN_VENTANA)
             for linea in proc.stdout.splitlines():
                 try:
                     d = json.loads(linea)

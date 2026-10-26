@@ -5,15 +5,20 @@ import Quickshell.Io
 
 // Colores y tipografía. Si usas Caelestia, los colores salen de su esquema actual
 // (~/.local/state/caelestia/scheme.json); en KDE Plasma se toma el color de acento del
-// sistema (kdeglobals); en cualquier otro caso, una paleta oscura Material 3.
+// sistema (kdeglobals); si no, los colores que calcula el servicio (pywal / wallust,
+// ~/.config/akari/tema.json…, ver akari/tema.py); y si nada de eso, una paleta oscura Material 3.
 Singleton {
     id: tema
 
     property var c: ({})              // esquema de Caelestia (vacío si no hay)
     property color acentoSistema: "transparent"
+    // colores del servicio ("#rrggbb"); solo si no hay Caelestia ni acento de KDE
+    readonly property var servicio: Datos.estado && Datos.estado.tema && !c.primary && acentoSistema.a === 0
+        ? Datos.estado.tema.colores : ({})
     function col(nombre, defecto) {
         const v = c[nombre];
-        return v ? "#" + v : defecto;
+        if (v) return "#" + v;
+        return servicio[nombre] || defecto;
     }
     function alfa(color, a) { return Qt.rgba(color.r, color.g, color.b, a); }
     function mezcla(a, b, f) { return Qt.rgba(a.r + (b.r - a.r) * f, a.g + (b.g - a.g) * f, a.b + (b.b - a.b) * f, 1); }

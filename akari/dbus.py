@@ -1,13 +1,19 @@
-"""Llamadas D-Bus mínimas. Usa PyGObject si está instalado y, si no, `busctl --json`
-(viene con systemd), así akari no exige paquetes extra en ninguna distribución."""
+"""Llamadas D-Bus mínimas. Usa PyGObject si está instalado; si no, un cliente propio en
+Python puro (dbus_nativo, sirve en distribuciones sin systemd) y como último recurso
+`busctl --json`. Así akari no exige paquetes extra en ninguna distribución.
+En Windows no hay D-Bus: todas las llamadas devuelven None y se usan otras fuentes."""
 import json
 import subprocess
+import sys
+
+from . import dbus_nativo
 
 try:
     from gi.repository import Gio, GLib
     _GI = True
 except ImportError:          # sin PyGObject
     _GI = False
+_WINDOWS = sys.platform == "win32"
 
 SISTEMA, SESION = "system", "session"
 _buses = {}
@@ -35,6 +41,8 @@ def _desenvolver(v):
 
 def llamar(bus, nombre, ruta, interfaz, metodo, firma="", args=(), espera=1500):
     """Devuelve la tupla de resultados o None si el servicio no está o falla."""
+    if _WINDOWS:
+        return None
     if _GI:
         conexion = _bus(bus)
         if conexion is None:
@@ -46,6 +54,8 @@ def llamar(bus, nombre, ruta, interfaz, metodo, firma="", args=(), espera=1500):
             return r.unpack() if r is not None else ()
         except GLib.Error:
             return None
+    if dbus_nativo.disponible(bus):
+        return dbus_nativo.llamar(bus, nombre, ruta, interfaz, metodo, firma, args, espera)
     orden = ["busctl", "--user" if bus == SESION else "--system", "--json=short",
              f"--timeout={max(1, espera // 1000)}", "call", nombre, ruta, interfaz, metodo]
     if firma:

@@ -1,11 +1,13 @@
 """Comando `akari`.
 
-  akari [servicio]     arranca el servicio (lo hace systemd al iniciar sesión)
-  akari abrir          abre el panel (ventana flotante)
-  akari app            abre la cápsula flotante con icono en la bandeja (X11, XFCE…)
+  akari [servicio]     arranca el servicio (lo hace systemd o la app al iniciar sesión)
+  akari arrancar       arranca el servicio y la interfaz si no están (sirve con o sin systemd)
+  akari abrir          abre el panel completo (ventana flotante)
+  akari app            abre las burbujas flotantes con icono en la bandeja (X11, XFCE, Windows…)
   akari estado         resumen en la terminal
   akari guia           cómo se usa akari en tu escritorio
-  akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o panel)
+  akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o app)
+  akari conectar-claude / desconectar-claude   línea de estado de Claude Code
   akari statusline     línea de estado para Claude Code (la configura el instalador)
   akari version
 """
@@ -14,23 +16,41 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 import webbrowser
+from pathlib import Path
 
 from . import PUERTO, VERSION
-from .comun import RAIZ, t
+from .comun import CACHE, HOME, RAIZ, SIN_VENTANA, WINDOWS, ajustes, t
+
+INTERFACES = ("capsulas", "gnome", "app")
+UNIDADES = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "systemd" / "user"
+
+
+def quickshell():
+    return shutil.which("qs") or shutil.which("quickshell")
 
 
 def escritorio():
     """Devuelve (nombre del escritorio, interfaz recomendada)."""
+    if WINDOWS:
+        return "windows", "app"
     nombre = (os.environ.get("XDG_CURRENT_DESKTOP") or os.environ.get("DESKTOP_SESSION") or "").lower()
     wayland = os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(os.environ.get("WAYLAND_DISPLAY"))
-    if "gnome" in nombre or "ubuntu" in nombre or "unity" in nombre:
+    if any(g in nombre for g in ("gnome", "ubuntu", "unity", "pantheon")):
         return nombre, "gnome"
     # wlr-layer-shell: KDE Plasma, Hyprland, Sway, niri, river, Wayfire, labwc, COSMIC…
-    if wayland and (shutil.which("qs") or shutil.which("quickshell")):
+    if wayland and quickshell():
         return nombre, "capsulas"
-    return nombre, "panel"
+    # todo lo demás (X11, XFCE, Cinnamon, MATE, LXQt, Budgie, KDE sin Quickshell…): burbujas de la app
+    return nombre, "app"
+
+
+def interfaz_elegida():
+    """La que dejó el instalador en ajustes.json; si no, la recomendada para este escritorio."""
+    elegida = {"panel": "app"}.get(ajustes().get("interfaz"), ajustes().get("interfaz"))
+    return elegida if elegida in INTERFACES else escritorio()[1]
 
 
 GUIA = {
@@ -81,44 +101,178 @@ Icons missing after logging back in?
 
 Don't see the capsules?
      systemctl --user restart akari akari-capsulas"""),
-    "panel": (
-        """akari es una pastilla flotante arriba en el centro de la pantalla, con un icono en la bandeja.
+    "app": (
+        """akari son tres burbujas que cuelgan del borde superior de la pantalla, cerca del centro,
+con un icono en la bandeja (igual que las cápsulas de KDE / Hyprland).
 
-  1. Haz clic en la pastilla (o en el icono de la bandeja) para abrir el panel con 3D.
-  2. Arrastra la pastilla para moverla. Desde el icono de la bandeja puedes ocultarla
-     o hacer que arranque (o no) al iniciar sesión.
-  3. Si la cerraste: busca "akari" en tus aplicaciones, o en la terminal: akari app""",
-        """akari is a floating pill at the top center of the screen, with a tray icon.
+  1. Pasa el ratón por encima de una burbuja para abrirla.
+  2. Clic en su cabecera: la deja abierta. Arrástrala para moverla; contra un borde
+     lateral se vuelve pestaña vertical. Doble clic: vuelve a su sitio.
+  3. Panel completo con 3D: clic en el icono de la bandeja, o en la terminal: akari abrir
+  4. Desde el icono de la bandeja las ocultas o eliges si arrancan al iniciar sesión.
 
-  1. Click the pill (or the tray icon) to open the panel with 3D.
-  2. Drag the pill to move it. From the tray icon you can hide it or choose whether
-     it starts at login.
-  3. If you closed it: search "akari" in your apps, or in a terminal: akari app"""),
+¿Las cerraste? Busca "akari" en tus aplicaciones, o en la terminal: akari app""",
+        """akari is three bubbles hanging from the top edge of the screen, near the center,
+with a tray icon (just like the KDE / Hyprland capsules).
+
+  1. Hover a bubble to open it.
+  2. Click its header to pin it open. Drag it to move it; against a side edge it
+     becomes a vertical tab. Double-click: back to its place.
+  3. Full panel with 3D: click the tray icon, or in a terminal: akari abrir
+  4. From the tray icon you can hide them or choose whether they start at login.
+
+Closed them? Search "akari" in your apps, or in a terminal: akari app"""),
 }
+GUIA["panel"] = GUIA["app"]
 COMUN = (
     """
 En la terminal:  akari estado  (resumen) · akari abrir  (panel) · akari guia  (esta ayuda)
-Si no hay datos: systemctl --user restart akari
+Si no hay datos: akari arrancar   (con systemd: systemctl --user restart akari)
 Límites de Claude: aparecen después de tu próximo mensaje en Claude Code. Codex: después de usarlo.
 Quitar akari:    ~/.local/share/akari/install.sh --desinstalar
 Más ayuda:       https://github.com/sJonathan15/akari#primeros-pasos""",
     """
 In a terminal:  akari estado  (summary) · akari abrir  (panel) · akari guia  (this help)
-No data?        systemctl --user restart akari
+No data?        akari arrancar   (with systemd: systemctl --user restart akari)
 Claude limits show up after your next message in Claude Code; Codex after you use it.
 Remove akari:   ~/.local/share/akari/install.sh --desinstalar
 More help:      https://github.com/sJonathan15/akari#first-steps""")
 
 
+COMUN_WINDOWS = (
+    """
+En la terminal:  akari estado  (resumen) · akari abrir  (panel) · akari guia  (esta ayuda)
+Si no hay datos: cierra akari desde el icono de la bandeja y vuelve a abrirlo.
+Límites de Claude: aparecen después de tu próximo mensaje en Claude Code. Codex: después de usarlo.
+Quitar akari:    Configuración → Aplicaciones → akari → Desinstalar
+Más ayuda:       https://github.com/sJonathan15/akari#primeros-pasos""",
+    """
+In a terminal:  akari estado  (summary) · akari abrir  (panel) · akari guia  (this help)
+No data?        quit akari from the tray icon and open it again.
+Claude limits show up after your next message in Claude Code; Codex after you use it.
+Remove akari:   Settings → Apps → akari → Uninstall
+More help:      https://github.com/sJonathan15/akari#first-steps""")
+
+
 def guia(interfaz=None):
-    interfaz = interfaz if interfaz in GUIA else escritorio()[1]
+    interfaz = interfaz if interfaz in GUIA else interfaz_elegida()
     texto = GUIA[interfaz]
-    print(t(texto[0], texto[1]) + t(COMUN[0], COMUN[1]))
+    comun = COMUN_WINDOWS if WINDOWS else COMUN
+    print(t(texto[0], texto[1]) + t(comun[0], comun[1]))
 
 
 def pedir_estado():
     with urllib.request.urlopen(f"http://127.0.0.1:{PUERTO}/api/estado", timeout=3) as r:
         return json.load(r)
+
+
+def vivo():
+    try:
+        pedir_estado()
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def python_sin_consola():
+    """En Windows, pythonw.exe (no abre ventana); en Linux, el mismo intérprete."""
+    if WINDOWS:
+        w = Path(sys.executable).with_name("pythonw.exe")
+        if w.exists():
+            return str(w)
+    return sys.executable
+
+
+def lanzar(orden, **kw):
+    """Proceso independiente de esta terminal (sigue vivo al cerrarla)."""
+    if WINDOWS:
+        kw.setdefault("creationflags", 0x00000008 | 0x00000200 | SIN_VENTANA["creationflags"])  # DETACHED | NEW_GROUP
+    else:
+        kw.setdefault("start_new_session", True)
+    kw.setdefault("stdout", subprocess.DEVNULL)
+    kw.setdefault("stderr", subprocess.DEVNULL)
+    return subprocess.Popen(orden, stdin=subprocess.DEVNULL, **kw)
+
+
+def con_systemd(unidad):
+    """¿Hay una unidad de systemd --user de akari y systemd de usuario funcionando?"""
+    return not WINDOWS and (UNIDADES / unidad).exists() and shutil.which("systemctl") is not None and \
+        subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True).returncode == 0
+
+
+def corriendo(*fragmentos):
+    """¿Hay un proceso de este usuario cuya línea de órdenes contiene todos los fragmentos? (Linux)"""
+    for cmd in Path("/proc").glob("[0-9]*/cmdline"):
+        try:
+            linea = cmd.read_bytes().replace(b"\0", b" ").decode(errors="replace")
+        except OSError:
+            continue
+        if all(f in linea for f in fragmentos):
+            return True
+    return False
+
+
+def arrancar_servicio():
+    if vivo():
+        return True
+    if con_systemd("akari.service"):
+        subprocess.run(["systemctl", "--user", "start", "akari.service"], capture_output=True)
+    else:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        registro = open(CACHE / "servicio.log", "ab")
+        lanzar([python_sin_consola(), str(RAIZ / "bin" / "akari.py"), "servicio"], stdout=registro, stderr=registro)
+    for _ in range(40):
+        if vivo():
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def arrancar():
+    """Arranque universal: lo usan el autoarranque del escritorio, el exec-once de Hyprland,
+    el exec de Sway, el spawn-at-startup de niri… No hace nada si ya está todo corriendo."""
+    ok = arrancar_servicio()
+    interfaz = interfaz_elegida()
+    if interfaz == "capsulas":
+        if con_systemd("akari-capsulas.service"):
+            # lanzado desde el exec-once de Hyprland / Sway sin uwsm: systemd aún no conoce la
+            # pantalla de esta sesión y Quickshell no podría conectarse
+            variables = [v for v in ("WAYLAND_DISPLAY", "DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE",
+                                     "HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK", "NIRI_SOCKET") if os.environ.get(v)]
+            if variables:
+                subprocess.run(["systemctl", "--user", "import-environment", *variables], capture_output=True)
+            subprocess.run(["systemctl", "--user", "start", "akari-capsulas.service"], capture_output=True)
+        elif quickshell() and not corriendo("-p", str(RAIZ / "capsulas")):
+            lanzar([quickshell(), "-p", str(RAIZ / "capsulas")], env={**os.environ, "AKARI_RAIZ": str(RAIZ)})
+    elif interfaz == "app":
+        abrir_app()
+    if not ok:
+        print(t(f"El servicio no respondió; mira {CACHE / 'servicio.log'}", f"The service did not answer; see {CACHE / 'servicio.log'}"))
+    return 0 if ok else 1
+
+
+def app_instalada():
+    """La app de escritorio: el AppImage en Linux; en Windows la instalada con su instalador."""
+    if WINDOWS:
+        for base in (os.environ.get("LOCALAPPDATA"), os.environ.get("ProgramFiles")):
+            exe = Path(base or "-") / "Programs" / "akari" / "akari.exe"
+            if exe.exists():
+                return exe
+            exe = Path(base or "-") / "akari" / "akari.exe"
+            if exe.exists():
+                return exe
+        return None
+    app = RAIZ / "app" / "akari-panel"
+    return app if app.exists() else None
+
+
+def abrir_app(*args):
+    app = app_instalada()
+    if not app:
+        return False
+    extra, env = ([], dict(os.environ)) if WINDOWS else entorno_appimage()
+    lanzar([str(app), *args, *extra], env=env)
+    return True
 
 
 def entorno_appimage():
@@ -144,17 +298,22 @@ def entorno_appimage():
 def abrir():
     """Panel: la app empaquetada si existe; si no, el navegador en modo aplicación."""
     url = f"http://127.0.0.1:{PUERTO}/"
-    for app in (RAIZ / "app" / "akari-panel", RAIZ / "app" / "node_modules" / ".bin" / "electron"):
-        if app.exists():
-            extra, env = entorno_appimage()
-            orden = [str(app), "--panel", *extra] if app.name == "akari-panel" else [str(app), str(RAIZ / "app"), "--panel", *extra]
-            subprocess.Popen(orden, start_new_session=True, env=env,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return
-    for nav in ("chromium", "google-chrome-stable", "google-chrome", "brave", "microsoft-edge-stable", "vivaldi"):
-        if shutil.which(nav):
-            subprocess.Popen([nav, f"--app={url}", "--class=akari", "--window-size=420,760"],
-                             start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if abrir_app("--panel"):
+        return
+    electron = RAIZ / "app" / "node_modules" / ".bin" / ("electron.cmd" if WINDOWS else "electron")
+    if electron.exists():
+        lanzar([str(electron), str(RAIZ / "app"), "--panel"])
+        return
+    arrancar_servicio()
+    navegadores = ["chromium", "chromium-browser", "google-chrome-stable", "google-chrome", "brave", "brave-browser",
+                   "microsoft-edge-stable", "vivaldi", "msedge", "chrome"]
+    if WINDOWS:     # Edge viene con Windows aunque no esté en el PATH
+        for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
+            navegadores.append(str(Path(base or "-") / "Microsoft" / "Edge" / "Application" / "msedge.exe"))
+    for nav in navegadores:
+        ruta = shutil.which(nav) or (nav if Path(nav).is_file() else None)
+        if ruta:
+            lanzar([ruta, f"--app={url}", "--class=akari", "--window-size=420,760"])
             return
     webbrowser.open(url)
 
@@ -163,8 +322,8 @@ def resumen():
     try:
         e = pedir_estado()
     except OSError:
-        print(t("El servicio no está corriendo. Arráncalo con: systemctl --user start akari",
-                "The service is not running. Start it with: systemctl --user start akari"))
+        print(t("El servicio no está corriendo. Arráncalo con: akari arrancar",
+                "The service is not running. Start it with: akari arrancar"))
         return 1
     for clave in ("claude", "codex"):
         p = (e["ia"] or {}).get(clave)
@@ -194,13 +353,15 @@ def main():
         linea()
     elif orden == "abrir":
         abrir()
+    elif orden == "arrancar":
+        sys.exit(arrancar())
     elif orden == "app":
-        app = RAIZ / "app" / "akari-panel"
-        if not app.exists():
-            sys.exit(t("No está la app (AppImage): vuelve a ejecutar el instalador.", "The app (AppImage) is missing: run the installer again."))
-        extra, env = entorno_appimage()
-        subprocess.Popen([str(app), *extra], start_new_session=True, env=env,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not abrir_app():
+            sys.exit(t("No está la app de escritorio: vuelve a ejecutar el instalador.",
+                       "The desktop app is missing: run the installer again."))
+    elif orden in ("conectar-claude", "desconectar-claude"):
+        from .instalar import conectar_claude, desconectar_claude
+        print(conectar_claude(sys.argv[2] if len(sys.argv) > 2 else None) if orden == "conectar-claude" else desconectar_claude())
     elif orden == "estado":
         sys.exit(resumen())
     elif orden in ("guia", "guía", "guide"):

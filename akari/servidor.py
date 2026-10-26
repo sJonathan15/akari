@@ -17,10 +17,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import PUERTO, VERSION, demo
-from .comun import CONFIG, IDIOMA, RAIZ, ajustes, escribir_json
+from .comun import CONFIG, IDIOMA, RAIZ, WINDOWS, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
 from .ia import MonitorIA
+from .tema import Tema
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
@@ -36,6 +37,13 @@ class Servicio:
         self.ia = MonitorIA(self.cambio)
         self.dispositivos = MonitorDispositivos(self.cambio)
         self.habilidades = MonitorHabilidades(self.cambio)
+        self.tema = Tema()
+        self._tema = self.tema.valor
+
+    def revisar_tema(self):
+        if self.tema.actual() != self._tema:
+            self._tema = self.tema.valor
+            self.cambio()
 
     def cambio(self):
         with self.cond:
@@ -43,7 +51,8 @@ class Servicio:
             self.cond.notify_all()
 
     def estado(self):
-        base = {"version": VERSION, "idioma": IDIOMA, "ahora": time.time()}
+        base = {"version": VERSION, "idioma": IDIOMA, "ahora": time.time(), "tema": self.tema.valor,
+                "sistema": "windows" if WINDOWS else "linux"}
         if DEMO:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado}
@@ -57,7 +66,8 @@ class Servicio:
             time.sleep(intervalo)
 
     def arrancar(self):
-        for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5)):
+        for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5),
+                                (self.revisar_tema, 5)):
             threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
 
 
@@ -145,19 +155,24 @@ def crear_manejador(servicio):
                     else:
                         self.wfile.write(b": latido\n\n")
                     self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
 
     return Manejador
+
+
+class Servidor(ThreadingHTTPServer):
+    # en Windows SO_REUSEADDR deja que dos procesos escuchen en el mismo puerto: ahí no se usa
+    allow_reuse_address = not WINDOWS
+    daemon_threads = True
 
 
 def main():
     servicio = Servicio()
     servicio.arrancar()
     try:
-        servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), crear_manejador(servicio))
+        servidor = Servidor(("127.0.0.1", PUERTO), crear_manejador(servicio))
     except OSError as e:
         sys.exit(f"akari: el puerto {PUERTO} está ocupado ({e}). ¿Ya hay otro akari corriendo?")
-    servidor.daemon_threads = True
     print(f"akari {VERSION} en http://127.0.0.1:{PUERTO}", flush=True)
     servidor.serve_forever()

@@ -5,18 +5,20 @@ Fuentes (todas opcionales; lo que no exista se salta):
   * UPower: batería de ratones/teclados inalámbricos (p. ej. Logitech) y de la laptop;
   * /sys: periféricos USB externos y su tipo según las interfaces HID de arranque;
   * PipeWire/PulseAudio (pactl): volumen, códec y perfil de audífonos Bluetooth;
-  * KDE Connect (KDE) o GSConnect (GNOME): batería, carga y señal del celular.
+  * KDE Connect (KDE) o GSConnect (GNOME): batería, carga y señal del celular;
+  * en Windows: PnP (Bluetooth y USB), la batería del equipo y Bloq Mayús (ver windows.py).
 
 Lo que el usuario corrige (nombre, tipo, ocultar) va a ~/.config/akari/dispositivos.json.
 """
 import json
+import os
 import subprocess
 import threading
 import time
 from pathlib import Path
 
-from . import dbus
-from .comun import CONFIG, DATOS, escribir_json, leer_json, notificar, t
+from . import dbus, windows
+from .comun import CONFIG, DATOS, WINDOWS, escribir_json, leer_json, notificar, t
 
 PREFERENCIAS = CONFIG / "dispositivos.json"
 CONOCIDOS = DATOS / "dispositivos-conocidos.json"
@@ -288,8 +290,11 @@ def armar(lecturas):
             d["bateria"] = b["bateria"]
             if b["rssi"] is not None:
                 d["detalles"].append([t("Señal Bluetooth", "Bluetooth signal"), f"{b['rssi']} dBm"])
-        d["acciones"].append({"id": "desconectar" if b["conectado"] else "conectar",
-                              "etiqueta": t("Desconectar", "Disconnect") if b["conectado"] else t("Conectar", "Connect")})
+        if WINDOWS:     # Windows no deja conectar/desconectar desde fuera: se abren sus ajustes
+            d["acciones"].append({"id": "ajustes_bt", "etiqueta": t("Ajustes de Bluetooth", "Bluetooth settings")})
+        else:
+            d["acciones"].append({"id": "desconectar" if b["conectado"] else "conectar",
+                                  "etiqueta": t("Desconectar", "Disconnect") if b["conectado"] else t("Conectar", "Connect")})
         d["_rutas"]["bluez"] = b["ruta"]
         a = audio.get(mac)
         if a and b["conectado"]:
@@ -306,11 +311,12 @@ def armar(lecturas):
 
     # USB
     for u in usb:
-        d = nuevo(u["id"], u["tipo"], u["nombre"], u["fabricante"])
+        d = nuevo(u["id"], u["tipo"], u["nombre"] or nombre_tipo(u["tipo"]), u["fabricante"])
         d["conectado"], d["conexion"] = True, t("Cable / receptor USB", "USB cable / receiver")
-        d["detalles"].append([t("Puerto", "Port"), VELOCIDADES.get(u["velocidad"], f"{u['velocidad']} Mb/s")])
+        if u["velocidad"]:
+            d["detalles"].append([t("Puerto", "Port"), VELOCIDADES.get(u["velocidad"], f"{u['velocidad']} Mb/s")])
         if u["tipo"] == "teclado":
-            leds = leer_leds(u["sysfs"])
+            leds = windows.bloqueos() if WINDOWS else leer_leds(u["sysfs"])
             if leds:
                 d["detalles"].insert(0, [t("Bloq Mayús", "Caps Lock"), t("activado", "on") if leds.get("capslock") else t("desactivado", "off")])
                 d["detalles"].insert(1, [t("Bloq Num", "Num Lock"), t("activado", "on") if leds.get("numlock") else t("desactivado", "off")])
@@ -361,8 +367,10 @@ def armar(lecturas):
             d["ayuda"] = {
                 "audifonos": t("Enciéndelos: se conectan solos porque ya están vinculados.",
                                "Turn them on: they reconnect on their own since they are paired."),
-                "celular": t("Instala KDE Connect (o GSConnect en GNOME) en el equipo y en el celular para ver su batería.",
-                             "Install KDE Connect (or GSConnect on GNOME) on the computer and the phone to see its battery."),
+                "celular": t("Vincúlalo por Bluetooth o conéctalo por USB para ver su estado.",
+                             "Pair it over Bluetooth or plug it in over USB to see its status.") if WINDOWS else
+                t("Instala KDE Connect (o GSConnect en GNOME) en el equipo y en el celular para ver su batería.",
+                  "Install KDE Connect (or GSConnect on GNOME) on the computer and the phone to see its battery."),
             }.get(d["tipo"], t("Conéctalo o enciéndelo para ver su estado.", "Connect or turn it on to see its status."))
     return salida
 
@@ -426,6 +434,7 @@ class MonitorDispositivos:
         self.cargado_avisado = set()
         self.actividad = []
         self.bloqueo = threading.Lock()
+        self.windows = windows.LectorWindows(pista, USB_CELULARES) if WINDOWS else None
 
     def preferencias(self):
         p = leer_json(PREFERENCIAS)
@@ -480,10 +489,15 @@ class MonitorDispositivos:
 
     def _leer(self):
         prefs = self.preferencias()
-        bt, encendido = leer_bluetooth()
-        upower, equipo = leer_upower()
-        kdc, gsc = leer_kdeconnect(), leer_gsconnect()
-        lecturas = (bt, upower, leer_usb(), leer_audio(), (kdc or []) + (gsc or []))
+        if self.windows:
+            bt, usb = self.windows.leer()
+            encendido, upower, equipo, kdc, gsc = None, [], windows.bateria_equipo(), None, None
+            lecturas = (bt, upower, usb, {}, [])
+        else:
+            bt, encendido = leer_bluetooth()
+            upower, equipo = leer_upower()
+            kdc, gsc = leer_kdeconnect(), leer_gsconnect()
+            lecturas = (bt, upower, leer_usb(), leer_audio(), (kdc or []) + (gsc or []))
         actuales = armar(lecturas)
         ahora = time.time()
 
@@ -559,6 +573,9 @@ class MonitorDispositivos:
                 p.setdefault("tipos", {})[ident] = valor if valor in TIPOS else TIPOS[(TIPOS.index(actual) + 1) % len(TIPOS)]
             escribir_json(PREFERENCIAS, p)
             return True, t("Guardado.", "Saved.")
+        if accion == "ajustes_bt" and WINDOWS:
+            os.startfile("ms-settings:bluetooth")
+            return True, t("Abrí los ajustes de Bluetooth.", "Bluetooth settings opened.")
         if accion in ("conectar", "desconectar") and "bluez" in rutas:
             metodo = "Connect" if accion == "conectar" else "Disconnect"
             ok = dbus.llamar(dbus.SISTEMA, "org.bluez", rutas["bluez"], "org.bluez.Device1", metodo, espera=20000) is not None

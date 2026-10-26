@@ -18,7 +18,12 @@ def pct(valor):
 
 
 def main():
-    crudo = sys.stdin.read()
+    # Claude Code manda UTF-8 (en Windows la consola puede tener otra página de códigos)
+    crudo = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
     try:
         datos = json.loads(crudo or "{}")
     except ValueError:
