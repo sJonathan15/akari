@@ -19,7 +19,7 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
 | 6 | Búsqueda por significado (embeddings de Ollama) | 🟡 a medias: código escrito, sin probar con Ollama |
 | 7 | Ganchos opt-in (Claude Code SessionStart/SessionEnd, AGENTS.md de Codex) | ✅ hecho (probado a mano) |
 | 8 | Recorrido de bienvenida (fase final) | ⬜ falta |
-| — | Pruebas automáticas (`pruebas/servicio/prueba_cerebro.py`) | ⬜ falta |
+| — | Pruebas automáticas (`pruebas/servicio/prueba_cerebro.py`, 11 pruebas) | ✅ hecho |
 
 ## Archivos
 
@@ -41,7 +41,17 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
   estado `embeddings` + `para_archivos` {buscar, conversar} para la tarjeta «Modelos de IA».
 - `akari/__main__.py`: `akari cerebro …`.
 
-## Cómo se prueba (a mano, sin tocar tu carpeta real)
+## Cómo se prueba
+
+Automático (carpeta personal falsa en un subproceso, con `.ssh`, `.env`, `*.pem` y `credentials.json` que no
+deben aparecer; mtime + sha256 de todo antes y después; texto a mano fuera de las marcas; casillas marcadas
+en Obsidian; ganchos byte a byte; sesión falsa de Claude Code → bitácora):
+
+```sh
+AKARI_PUERTO=47891 python -m unittest discover -s pruebas/servicio -p "prueba_*.py"
+```
+
+A mano, sin tocar tu carpeta real:
 
 ```sh
 H=$(mktemp -d)        # carpeta personal falsa
@@ -71,25 +81,23 @@ python3 bin/akari.py cerebro conectar && python3 bin/akari.py cerebro desconecta
 - Embeddings recortados a 256 dimensiones (Matryoshka) y siempre locales (nunca por API: sería el índice entero).
 - Con modelo por API, nombres/rutas solo se mandan si el usuario lo permitió (`permitir_api` en
   `cerebro.json`); si no, todo funciona sin IA.
+- Las casillas de `Pendientes.md` solo se leen si el archivo cambió después de la última escritura de
+  akari (si no, una regeneración desharía un «hecho» dado por la terminal).
 - `abrir_archivo` solo abre rutas del mapa/carpetas elegidas, y nunca ejecuta programas (`.exe`, `.sh`…):
   esos solo se muestran en su carpeta.
 
 ## Qué sigue (siguiente paso concreto)
 
-1. **Pruebas** `pruebas/servicio/prueba_cerebro.py`: carpeta personal falsa en un subproceso (las rutas
-   de `comun` se fijan al importar), con `.ssh` y `.env` que no deben aparecer; comparar mtime + sha256
-   de todo antes/después; texto fuera de marcas sobrevive a `revisar()`; ganchos dejan `settings.json`
-   igual; sesiones falsas de Claude/Codex → bitácora.
-2. **Servicio**: en `akari/servidor.py` crear `self.cerebro = MonitorCerebro(self.cambio, self.modelos)`,
+1. **Servicio**: en `akari/servidor.py` crear `self.cerebro = MonitorCerebro(self.cambio, self.modelos)`,
    bucle `(self.cerebro.paso, 20)`, `"cerebro": self.cerebro.estado` en `/api/estado` y
    `POST /api/cerebro` → `self._json(servicio.cerebro.accion(datos))`. En demo, datos de ejemplo en `demo.py`.
-3. **Pieza «Cerebro»** (grupo Archivos): agregar a `akari/grupos.py` `{"id": "cerebro", "icono": "neurology",
+2. **Pieza «Cerebro»** (grupo Archivos): agregar a `akari/grupos.py` `{"id": "cerebro", "icono": "neurology",
    "chip": 64}`; `capsulas/PiezaCerebro.qml` (clave/anchoChip iguales: lo exige `prueba_grupos.py`) y en
    `shell.qml`; en `web/app.js` `PIEZAS.cerebro = "p-cerebro"`, chip, `dibujarCerebro()` (primera vez con
    privacidad y carpetas, estado, cifras, buscador con Abrir/Mostrar en carpeta, «En qué quedamos»,
    botones Obsidian/Revisar/Conectar/Elegir carpetas) y la sección en `web/index.html`.
-4. Tarjeta «Modelos de IA»: fila de embeddings (descargar sin `usar`) y la línea «Para buscar y abrir
+3. Tarjeta «Modelos de IA»: fila de embeddings (descargar sin `usar`) y la línea «Para buscar y abrir
    archivos: X (buscar) + Y (conversar)» con `modelos.para_archivos`.
-5. Probar la búsqueda por significado con Ollama + `embeddinggemma:300m`.
-6. Recorrido de bienvenida (`akari/recorrido.py`, `GET/POST /api/recorrido`, tarjeta en cápsulas/burbujas,
+4. Probar la búsqueda por significado con Ollama + `embeddinggemma:300m`.
+5. Recorrido de bienvenida (`akari/recorrido.py`, `GET/POST /api/recorrido`, tarjeta en cápsulas/burbujas,
    `akari recorrido`, «Primeros pasos»).

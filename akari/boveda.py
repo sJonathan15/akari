@@ -288,9 +288,14 @@ def nota_bitacora(dia):
 
 def sincronizar_casillas():
     """Lo que el usuario marcó o desmarcó en Pendientes.md (dentro de las marcas) pasa a la base."""
+    raiz = C.boveda()
+    ruta = raiz / "Pendientes.md" if raiz else None
     texto = leer("Pendientes.md")
     if not texto:
         return
+    with C.bd() as c:               # solo si el usuario la tocó después de la última vez que la escribió akari
+        if abs(ruta.stat().st_mtime - (C.meta(c, "pendientes_mtime") or 0)) < 0.001:
+            return
     bloque = bloque_de(texto)
     with C.bd() as c:
         for marca, ident in re.findall(r"^\s*- \[([ xX])\] .*?<!-- p(\d+) -->", bloque, re.M):
@@ -320,7 +325,10 @@ def nota_pendientes():
     lineas += abiertos or [t("- (nada pendiente)", "- (nothing to do)")]
     if hechos:
         lineas += ["", f"## {t('Hechos esta semana', 'Done this week')}", *hechos]
-    escribir("Pendientes.md", "\n".join(lineas))
+    ruta = escribir("Pendientes.md", "\n".join(lineas))
+    if ruta:
+        with C.bd() as c:
+            C.poner_meta(c, "pendientes_mtime", ruta.stat().st_mtime)
 
 
 # ---------------------------------------------------------------- cómo me organizo
