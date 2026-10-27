@@ -102,6 +102,9 @@ $cpu = $usado / ($segundos * 1000 * $nucleos) * 100
 $rects = @(Rects $app.Id | Where-Object { $_[2] -gt 20 -and $_[3] -gt 20 })   # sin las ventanitas ocultas de la bandeja
 $prueba = $null     # (en PowerShell $prueba y $Raton no se pisan; $raton sí sería el mismo que $Raton)
 if ($Raton) {
+  # instalación nueva: el recorrido de bienvenida deja abierta la burbuja de su paso; se salta como quien ya lo vio
+  try { Invoke-RestMethod -Method Post http://127.0.0.1:47830/api/recorrido -ContentType 'application/json' -Body '{"accion": "saltar"}' | Out-Null } catch { }
+  Start-Sleep -Seconds 3      # que la página lo vea y la burbuja se cierre
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   $pantalla = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
   $centro = $pantalla.Left + $pantalla.Width / 2
