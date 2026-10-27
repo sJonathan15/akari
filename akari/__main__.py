@@ -83,18 +83,22 @@ GUIA = {
 Icons missing after logging back in?
      gnome-extensions enable akari@sjonathan15.github.io   (then log in again)"""),
     "capsulas": (
-        """akari son tres cápsulas que cuelgan del borde superior de la pantalla, cerca del centro.
+        """akari son tres cápsulas que cuelgan del borde superior de la pantalla, cerca del centro:
+Equipo (dispositivos), IA (uso, modelos, habilidades) y Archivos (documentos, audio).
 
-  1. Pasa el ratón por encima de una cápsula para abrirla.
+  1. Pasa el ratón por un icono de una cápsula para abrirla en eso; abierta, clic en otro icono
+     cambia. Suelta un archivo sobre Archivos para convertirlo o transcribirlo.
   2. Clic en su cabecera: la deja abierta. Arrástrala para moverla; contra un borde
      lateral se vuelve pestaña vertical. Doble clic: vuelve a su sitio.
   3. Panel completo con 3D: botón "Abrir panel completo" o, en la terminal: akari abrir
 
 ¿No ves las cápsulas?
      systemctl --user restart akari akari-capsulas""",
-        """akari is three capsules hanging from the top edge of the screen, near the center.
+        """akari is three capsules hanging from the top edge of the screen, near the center:
+Computer (devices), AI (usage, models, skills) and Files (documents, audio).
 
-  1. Hover a capsule to open it.
+  1. Hover an icon on a capsule to open it there; once open, click another icon to switch.
+     Drop a file on Files to convert or transcribe it.
   2. Click its header to pin it open. Drag it to move it; against a side edge it
      becomes a vertical tab. Double-click: back to its place.
   3. Full panel with 3D: "Open full panel" button or, in a terminal: akari abrir
@@ -103,9 +107,11 @@ Don't see the capsules?
      systemctl --user restart akari akari-capsulas"""),
     "app": (
         """akari son tres burbujas que cuelgan del borde superior de la pantalla, cerca del centro,
-con un icono en la bandeja (igual que las cápsulas de KDE / Hyprland).
+con un icono en la bandeja (igual que las cápsulas de KDE / Hyprland): Equipo (dispositivos),
+IA (uso, modelos, habilidades) y Archivos (documentos, audio).
 
-  1. Pasa el ratón por encima de una burbuja para abrirla.
+  1. Pasa el ratón por un icono de una burbuja para abrirla en eso; abierta, clic en otro icono
+     cambia. Suelta un archivo sobre Archivos para convertirlo o transcribirlo.
   2. Clic en su cabecera: la deja abierta. Arrástrala para moverla; contra un borde
      lateral se vuelve pestaña vertical. Doble clic: vuelve a su sitio.
   3. Panel completo con 3D: clic en el icono de la bandeja, o en la terminal: akari abrir
@@ -113,9 +119,11 @@ con un icono en la bandeja (igual que las cápsulas de KDE / Hyprland).
 
 ¿Las cerraste? Busca "akari" en tus aplicaciones, o en la terminal: akari app""",
         """akari is three bubbles hanging from the top edge of the screen, near the center,
-with a tray icon (just like the KDE / Hyprland capsules).
+with a tray icon (just like the KDE / Hyprland capsules): Computer (devices), AI (usage,
+models, skills) and Files (documents, audio).
 
-  1. Hover a bubble to open it.
+  1. Hover an icon on a bubble to open it there; once open, click another icon to switch.
+     Drop a file on Files to convert or transcribe it.
   2. Click its header to pin it open. Drag it to move it; against a side edge it
      becomes a vertical tab. Double-click: back to its place.
   3. Full panel with 3D: click the tray icon, or in a terminal: akari abrir

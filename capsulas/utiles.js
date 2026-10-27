@@ -57,3 +57,16 @@ function textoCorto(d) {
 
 const ICONOS = { raton: "mouse", audifonos: "headphones", teclado: "keyboard", celular: "smartphone",
                  mando: "sports_esports", otro: "devices_other" };
+
+// 125 -> "02:05"; 3725 -> "1:02:05" (grabaciones, transcripciones)
+function reloj(seg) {
+    seg = Math.max(0, Math.round(seg));
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
+    const dos = n => (n < 10 ? "0" : "") + n;
+    return (h ? h + ":" + dos(m) : dos(m)) + ":" + dos(s);
+}
+
+// abre el panel completo (claves de API, modelos de IA…)
+function abrirPanel(Quickshell) {
+    Quickshell.execDetached([(Quickshell.env("AKARI_RAIZ") || Quickshell.shellDir + "/..") + "/bin/akari", "abrir"]);
+}

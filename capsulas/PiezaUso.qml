@@ -3,13 +3,15 @@ import QtQuick.Layouts
 import Quickshell
 import "utiles.js" as U
 
-Capsula {
+// Pieza «Uso de IA» del grupo IA: límites de 5 horas y semanal de Claude Code / Codex, tokens,
+// sesiones y el activador de la ventana de 5 horas.
+Pieza {
     id: capsula
-    nombre: "ia"
-    lado: "derecha"
-    anchoCerrado: 262
-    anchoAbierto: 360
-    altoMaximo: 760
+    clave: "uso"
+    titulo: U.t("Uso de IA", "AI usage")
+    icono: "bolt"
+    anchoChip: 92
+    anchoAbierto: 384
     pideTeclado: true
 
     // Claude Code y/o Codex: se muestra el último que usaste; con los dos, pestañas arriba
@@ -59,66 +61,30 @@ Capsula {
     Timer { interval: 1000; running: true; repeat: true; onTriggered: capsula.ahora = Date.now() / 1000 }
 
     // ------------------------------------------------------------- cerrada
-    cabecera: Component {
-        RowLayout {
-            spacing: 8
-            Item { Layout.preferredWidth: 6 }
+    // anillo con lo que queda de la ventana de 5 h y un punto que late mientras la IA responde
+    resumen: Component {
+        Row {
+            spacing: 6
+            Item { width: 4; height: 1 }
             Anillo {
-                Layout.preferredWidth: 22
-                Layout.preferredHeight: 22
+                anchors.verticalCenter: parent.verticalCenter
+                width: 20
+                height: 20
                 grosor: 4
                 valor: capsula.v5 ? capsula.v5.libre / 100 : 0
                 color: capsula.colorLibre(capsula.v5)
             }
             Etiqueta {
-                text: capsula.v5 ? Math.round(capsula.v5.libre) + "%" : "—"
-                tam: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: !Datos.enLinea ? "…" : capsula.v5 ? Math.round(capsula.v5.libre) + "%" : "—"
+                tam: 15
                 peso: Font.Medium
                 color: capsula.colorLibre(capsula.v5)
             }
-            Etiqueta {
-                text: !Datos.enLinea ? U.t("Iniciando…", "Starting…") : !capsula.proveedor ? U.t("sin Claude ni Codex", "no Claude or Codex")
-                    : capsula.v5 ? U.t("libre", "left") : U.t("sin lectura", "no data")
-                tam: Tema.textoChico
-                color: Tema.sobreSuperficieVar
-            }
-            Item { Layout.fillWidth: true }
             Rectangle {
-                visible: capsula.familia !== ""
-                Layout.preferredHeight: 22
-                Layout.preferredWidth: filaModelo.implicitWidth + 14
-                radius: 11
-                color: Tema.alfa(capsula.colorFamilia(capsula.familia), 0.16)
-                Row {
-                    id: filaModelo
-                    anchors.centerIn: parent
-                    spacing: 3
-                    Icono {
-                        text: capsula.iconoFamilia(capsula.familia)
-                        tam: 13
-                        relleno: 1
-                        color: capsula.colorFamilia(capsula.familia)
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Etiqueta {
-                        text: capsula.familia
-                        tam: Tema.textoChico
-                        peso: Font.Medium
-                        color: capsula.colorFamilia(capsula.familia)
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-            }
-            Etiqueta {
-                visible: !!(capsula.v5 && capsula.v5.reinicia)
-                text: capsula.v5 && capsula.v5.reinicia ? U.cuenta(capsula.v5.reinicia - capsula.ahora) : ""
-                tam: Tema.textoChico
-                font.family: Tema.mono
-                color: Tema.sobreSuperficieVar
-            }
-            Rectangle {   // late mientras Claude responde
-                Layout.preferredWidth: 7
-                Layout.preferredHeight: 7
+                anchors.verticalCenter: parent.verticalCenter
+                width: 7
+                height: 7
                 radius: 4
                 color: capsula.trabajando ? Tema.terciario : Tema.contornoVar
                 SequentialAnimation on opacity {
@@ -128,7 +94,6 @@ Capsula {
                     NumberAnimation { to: 1; duration: 600 }
                 }
             }
-            Item { Layout.preferredWidth: 10 }
         }
     }
 
@@ -555,14 +520,6 @@ Capsula {
                     }
                     Etiqueta { text: U.t("Última hora", "Last hour"); tam: 10; color: Tema.contorno }
                 }
-            }
-
-            // modelos de IA para el asistente (API o locales)
-            TarjetaModelos {
-                Layout.fillWidth: true
-                Layout.leftMargin: 10
-                Layout.rightMargin: 10
-                Layout.preferredHeight: implicitHeight
             }
 
             // última respuesta

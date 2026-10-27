@@ -3,18 +3,18 @@ import QtQuick.Layouts
 import Quickshell
 import "utiles.js" as U
 
-// Conversor de documentos (lo mismo que la pestaña «Documentos» del panel): PDF, Word y Excel a
-// Markdown y Markdown o lo copiado a Word o PDF. Se le pueden soltar archivos encima, cerrada o
-// abierta; el resultado queda junto al original (ver akari/documentos.py).
-Capsula {
+// Pieza «Documentos» del grupo Archivos (lo mismo que la pestaña del panel): PDF, Word y Excel a
+// Markdown y Markdown o lo copiado a Word o PDF. Se le pueden soltar archivos encima del grupo,
+// cerrado o abierto; el resultado queda junto al original (ver akari/documentos.py).
+Pieza {
     id: capsula
-    nombre: "documentos"
-    lado: "izquierda"
-    hueco: 404                  // a la izquierda de la cápsula de dispositivos abierta (8 + 384 + margen)
-    anchoCerrado: 164
+    clave: "documentos"
+    titulo: U.t("Documentos", "Documents")
+    icono: "swap_horiz"
+    anchoChip: 58
     anchoAbierto: 380
-    altoMaximo: 760
     aceptaArchivos: true
+    patron: /\.(pdf|docx?|odt|rtf|csv|pptx|html?|xlsx|xlsm|xls|ods|md|markdown|txt)$/i
 
     readonly property var estado: Datos.docs
     property string modo: "a-md"            // "a-md" | "desde-md"
@@ -37,35 +37,31 @@ Capsula {
         accion({ accion: "convertir", rutas: urls });
     }
 
-    // ------------------------------------------------------------- cerrada
-    cabecera: Component {
-        RowLayout {
-            spacing: 6
-            Item { Layout.preferredWidth: 8 }
+    // icono (gira mientras convierte; flecha de bajar con un archivo encima) y cuántos van
+    resumen: Component {
+        Row {
+            spacing: 4
+            Item { width: 6; height: 1 }
             Icono {
                 id: iconoCabecera
+                anchors.verticalCenter: parent.verticalCenter
                 text: capsula.archivoEncima ? "download" : "swap_horiz"
                 tam: 19
                 relleno: 1
-                color: Tema.primario
+                color: capsula.estado && !capsula.estado.listo ? Tema.contorno : Tema.primario
                 RotationAnimation on rotation {
                     running: capsula.activos > 0 && !capsula.archivoEncima
                     from: 0; to: 360; duration: 1400; loops: Animation.Infinite
-                    onRunningChanged: if (!running) iconoCabecera.rotation = 0   // «parent» aquí es el Loader
+                    onRunningChanged: if (!running) iconoCabecera.rotation = 0   // «parent» aquí es la fila
                 }
             }
             Etiqueta {
-                Layout.fillWidth: true
-                text: !Datos.enLinea ? "…"
-                    : capsula.archivoEncima ? U.t("Suelta para convertir", "Drop to convert")
-                    : !capsula.estado ? U.t("documentos", "documents")
-                    : !capsula.estado.listo ? U.t("Sin instalar", "Not installed")
-                    : capsula.activos ? U.t("Convirtiendo ", "Converting ") + capsula.activos + "…"
-                    : U.t("documentos", "documents")
-                tam: Tema.textoChico
-                color: capsula.archivoEncima ? Tema.primario : Tema.sobreSuperficieVar
+                anchors.verticalCenter: parent.verticalCenter
+                text: !capsula.estado ? "—" : capsula.activos ? String(capsula.activos) : String(capsula.trabajos.filter(x => x.estado === "listo").length)
+                tam: 15
+                peso: Font.Medium
+                color: capsula.activos ? Tema.primario : Tema.sobreSuperficie
             }
-            Item { Layout.preferredWidth: 8 }
         }
     }
 
@@ -73,6 +69,15 @@ Capsula {
     cuerpo: Component {
         ColumnLayout {
             spacing: 8
+
+            Pestanas {
+                visible: !!capsula.estado && capsula.estado.listo
+                Layout.alignment: Qt.AlignHCenter
+                opciones: [{ id: "a-md", texto: U.t("A Markdown", "To Markdown") },
+                           { id: "desde-md", texto: U.t("Desde Markdown", "From Markdown") }]
+                actual: capsula.modo
+                onElegida: id => { capsula.modo = id; capsula.respuesta = ""; }
+            }
 
             // ------------------------------------------------ instalar
             Tarjeta {
@@ -131,15 +136,6 @@ Capsula {
                 onPulsado: capsula.accion({ accion: "instalar" })
             }
 
-            // ------------------------------------------------ conversor
-            Pestanas {
-                visible: !!capsula.estado && capsula.estado.listo
-                Layout.alignment: Qt.AlignHCenter
-                opciones: [{ id: "a-md", texto: U.t("A Markdown", "To Markdown") },
-                           { id: "desde-md", texto: U.t("Desde Markdown", "From Markdown") }]
-                actual: capsula.modo
-                onElegida: id => { capsula.modo = id; capsula.respuesta = ""; }
-            }
             Row {
                 visible: !!capsula.estado && capsula.estado.listo && capsula.modo === "desde-md"
                 Layout.alignment: Qt.AlignHCenter
@@ -166,7 +162,7 @@ Capsula {
 
             // zona para soltar (en realidad se puede soltar en toda la cápsula)
             Rectangle {
-                visible: !!capsula.estado && capsula.estado.listo
+                visible: (!!capsula.estado && capsula.estado.listo)
                 Layout.fillWidth: true
                 Layout.leftMargin: 10
                 Layout.rightMargin: 10
@@ -244,7 +240,7 @@ Capsula {
 
             // ------------------------------------------------ últimos
             Tarjeta {
-                visible: !!capsula.estado && capsula.estado.listo && capsula.trabajos.length > 0
+                visible: (!!capsula.estado && capsula.estado.listo) && capsula.trabajos.length > 0
                 Layout.fillWidth: true
                 Layout.leftMargin: 10
                 Layout.rightMargin: 10

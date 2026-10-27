@@ -3,16 +3,15 @@ import QtQuick.Layouts
 import Quickshell
 import "utiles.js" as U
 
-// Habilidades (skills) de Claude Code y Codex: las 10 recomendadas para el día a día con
-// botón de instalar, las que ya tienes con cuántas veces las usó tu IA, y los conectores MCP.
-Capsula {
+// Pieza «Habilidades» del grupo IA: skills de Claude Code y Codex (las 10 recomendadas para el día
+// a día con botón de instalar, las que ya tienes con cuántas veces las usó tu IA) y conectores MCP.
+Pieza {
     id: capsula
-    nombre: "habilidades"
-    lado: "derecha"
-    hueco: 380                  // a la derecha de la cápsula de IA abierta (8 + 360 + margen)
-    anchoCerrado: 136
-    anchoAbierto: 380
-    altoMaximo: 900
+    clave: "habilidades"
+    titulo: U.t("Habilidades", "Skills")
+    icono: "auto_awesome"
+    anchoChip: 58
+    anchoAbierto: 384
 
     property var estado: Datos.hab
     property string pestana: "recomendadas"
@@ -26,34 +25,29 @@ Capsula {
     function nombreAgente(a) { return a === "claude" ? "Claude" : "Codex"; }
 
     // ------------------------------------------------------------- cerrada
-    cabecera: Component {
-        RowLayout {
-            spacing: 6
-            Item { Layout.preferredWidth: 8 }
+    resumen: Component {
+        Row {
+            spacing: 4
+            Item { width: 6; height: 1 }
             Icono {
                 id: iconoCabecera
+                anchors.verticalCenter: parent.verticalCenter
                 text: "auto_awesome"
-                tam: 19
+                tam: 18
                 relleno: 1
                 color: Tema.primario
                 RotationAnimation on rotation {
                     running: capsula.instalando
                     from: 0; to: 360; duration: 1400; loops: Animation.Infinite
-                    onRunningChanged: if (!running) iconoCabecera.rotation = 0   // ojo: «parent» aquí es el Loader de la cabecera
+                    onRunningChanged: if (!running) iconoCabecera.rotation = 0   // ojo: «parent» aquí es la fila
                 }
             }
             Etiqueta {
+                anchors.verticalCenter: parent.verticalCenter
                 text: capsula.estado ? capsula.estado.total : "—"
-                tam: 16
+                tam: 15
                 peso: Font.Medium
             }
-            Etiqueta {
-                Layout.fillWidth: true
-                text: !Datos.enLinea ? "…" : U.t("habilidades", "skills")
-                tam: Tema.textoChico
-                color: Tema.sobreSuperficieVar
-            }
-            Item { Layout.preferredWidth: 8 }
         }
     }
 

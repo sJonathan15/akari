@@ -363,3 +363,16 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .aud-mas .mod-lista { margin-top: 8px; }
 .redondo.hecho { color: var(--primario); }
 .icono.late { animation: latir 1.2s ease-in-out infinite; }
+
+/* grupos: piezas del panel y chips de las burbujas */
+.piezas { margin: -2px 0 10px; flex-wrap: wrap; }
+.piezas:empty { display: none; }
+.piezas .icono { font-size: 16px; vertical-align: -3px; }
+.b-fila.grupo { justify-content: center; gap: 4px; padding: 0 10px; }
+.b-pieza { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; border-radius: 14px;
+  transition: background-color 150ms; }
+.b-pieza .b-num { font-size: 15px; }
+.b-pieza .b-num.chico { font-size: 12px; }
+.forma.abierta .b-pieza.elegida { background: color-mix(in srgb, var(--primario) 16%, transparent); }
+.forma.abierta .b-pieza:not(.elegida):hover { background: var(--contenedor-alto); cursor: pointer; }
+#audio-contenido { display: flex; flex-direction: column; gap: 10px; }

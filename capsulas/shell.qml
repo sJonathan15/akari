@@ -3,12 +3,13 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// akari: cápsulas que cuelgan del borde superior, cerca del centro.
-//   documentos (más a la izquierda) · dispositivos (izquierda) · IA: Claude Code / Codex (derecha)
-//   · habilidades (más a la derecha)
-// Se arrastran desde la cabecera a cualquier lugar; doble clic las devuelve a su sitio.
-// Para no mostrar alguna (p. ej. si ya tienes otro widget igual), ponla en
-// ~/.config/akari/capsulas.json: { "ocultas": ["dispositivos", "ia"] }
+// akari: tres grupos de cápsulas que cuelgan del borde superior, cerca del centro (ver AGENTS.md):
+//   Equipo (izquierda) · IA (derecha) · Archivos (a la derecha de IA)
+// Cada grupo es una píldora con un chip por pieza; se abre en la pieza que está bajo el puntero.
+// Se arrastran desde la cabecera a cualquier lugar; doble clic los devuelve a su sitio.
+// Para no mostrar piezas o grupos enteros (p. ej. si ya tienes otro widget igual), ponlos en
+// ~/.config/akari/capsulas.json: { "ocultas": ["dispositivos", "audio", "archivos"] }
+// La misma lista de grupos está en akari/grupos.py (la usa la app de escritorio).
 ShellRoot {
     id: raiz
     property var ocultas: []
@@ -22,9 +23,42 @@ ShellRoot {
         }
         onLoadFailed: raiz.ocultas = []
     }
+    function visible(grupo, piezas) {
+        return !ocultas.includes(grupo) && piezas.some(p => !ocultas.includes(p));
+    }
 
-    LazyLoader { active: !raiz.ocultas.includes("documentos"); CapsulaDocumentos {} }
-    LazyLoader { active: !raiz.ocultas.includes("dispositivos"); CapsulaDispositivos {} }
-    LazyLoader { active: !raiz.ocultas.includes("ia"); CapsulaIA {} }
-    LazyLoader { active: !raiz.ocultas.includes("habilidades"); CapsulaHabilidades {} }
+    LazyLoader {
+        active: raiz.visible("equipo", ["dispositivos"])
+        CapsulaGrupo {
+            nombre: "equipo"
+            lado: "izquierda"
+            altoMaximo: 700
+            ocultas: raiz.ocultas
+            PiezaDispositivos {}
+        }
+    }
+    LazyLoader {
+        active: raiz.visible("ia", ["uso", "modelos", "habilidades"])
+        CapsulaGrupo {
+            nombre: "ia"
+            lado: "derecha"
+            altoMaximo: 780
+            ocultas: raiz.ocultas
+            PiezaUso {}
+            PiezaModelos {}
+            PiezaHabilidades {}
+        }
+    }
+    LazyLoader {
+        active: raiz.visible("archivos", ["documentos", "audio"])
+        CapsulaGrupo {
+            nombre: "archivos"
+            lado: "derecha"
+            hueco: 404              // a la derecha del grupo IA abierto (8 + 384 + margen)
+            altoMaximo: 760
+            ocultas: raiz.ocultas
+            PiezaDocumentos {}
+            PiezaAudio {}
+        }
+    }
 }

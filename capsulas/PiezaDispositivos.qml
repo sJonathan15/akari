@@ -3,13 +3,14 @@ import QtQuick.Layouts
 import Quickshell
 import "utiles.js" as U
 
-Capsula {
+// Pieza «Dispositivos» del grupo Equipo: batería y estado de ratón, teclado, audífonos y celular.
+Pieza {
     id: capsula
-    nombre: "dispositivos"
-    lado: "izquierda"
-    anchoCerrado: 262
+    clave: "dispositivos"
+    titulo: U.t("Dispositivos", "Devices")
+    icono: "devices"
+    anchoChip: 254
     anchoAbierto: 384
-    altoMaximo: 700
 
     property var estado: Datos.disp
     property var dispositivos: estado ? estado.dispositivos : []
@@ -30,7 +31,7 @@ Capsula {
     }
 
     // ------------------------------------------------------------- cerrada
-    cabecera: Component {
+    resumen: Component {
         Item {
             RowLayout {
                 anchors.fill: parent

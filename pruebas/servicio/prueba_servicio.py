@@ -55,6 +55,13 @@ class Servicio(unittest.TestCase):
         self.assertIn(b'id="burbuja"', cuerpo)
         self.assertEqual(self.pedir("/app.js")[0], 200)
 
+    def test_burbujas(self):
+        _, tipo, cuerpo = self.pedir("/api/burbujas")
+        grupos = json.loads(cuerpo)["grupos"]
+        self.assertEqual([g["id"] for g in grupos], ["equipo", "ia", "archivos"])
+        self.assertTrue(all(g["piezas"] and g["anchoCerrado"] > 0 for g in grupos))
+        self.assertEqual(self.pedir("/?vista=burbuja&c=archivos")[0], 200)
+
     def test_solo_json(self):
         r = urllib.request.Request(URL + "/api/ajustes", data=b"idioma=es", method="POST",
                                    headers={"Content-Type": "application/x-www-form-urlencoded"})

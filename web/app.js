@@ -1,16 +1,27 @@
-// Panel de akari. Recibe el estado del servicio por SSE (/eventos) y dibuja las tres
-// secciones: IA (Claude Code / Codex), dispositivos (con 3D) y habilidades.
-// Con ?vista=burbuja&c=ia|dispositivos|habilidades dibuja una de las burbujas flotantes de la
-// app de escritorio: la misma sección del panel, con su cabecera y su animación de apertura.
+// Panel de akari. Recibe el estado del servicio por SSE (/eventos) y dibuja cada pieza en su
+// sección. Las piezas van en tres grupos: Equipo, IA y Archivos (ver akari/grupos.py y AGENTS.md).
+// Con ?vista=burbuja&c=equipo|ia|archivos dibuja uno de los grupos flotantes de la app de
+// escritorio: un chip por pieza en la cabecera y, abierta, la sección de la pieza elegida.
 import { Visor } from "./visor3d.js";
 
-const vista = new URLSearchParams(location.search).get("vista");
-const SECCIONES = { ia: ["ia", "p-ia"], dispositivos: ["disp", "p-disp"], habilidades: ["hab", "p-hab"], documentos: ["doc", "p-doc"] };
-const pedida = new URLSearchParams(location.search).get("c");
-const burbuja = vista === "burbuja" ? (SECCIONES[pedida] ? pedida : "ia") : null;
+const params = new URLSearchParams(location.search);
+const vista = params.get("vista");
+// la sección del panel de cada pieza
+const PIEZAS = { dispositivos: "p-disp", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", documentos: "p-doc", audio: "p-audio" };
+// copia de akari/grupos.py para el primer dibujo; se reemplaza con GET /api/burbujas
+let GRUPOS = [
+  { id: "equipo", piezas: [{ id: "dispositivos", icono: "devices", chip: 254 }] },
+  { id: "ia", piezas: [{ id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }] },
+  { id: "archivos", piezas: [{ id: "documentos", icono: "swap_horiz", chip: 58 }, { id: "audio", icono: "graphic_eq", chip: 72 }] },
+];
+// burbuja: el grupo; c= de antes (una burbuja por función) sigue andando
+const pedida = params.get("c");
+const ANTIGUAS = { dispositivos: "equipo", documentos: "archivos" };
+const burbuja = vista !== "burbuja" ? null : GRUPOS.some((g) => g.id === pedida) ? pedida : ANTIGUAS[pedida] || "ia";
+const soloPieza = vista === "burbuja" && pedida === "habilidades" ? "habilidades" : null;
 let E = null;                         // último estado
 let idioma = navigator.language.startsWith("es") ? "es" : "en";
-const ui = { pagina: "ia", proveedor: "", dispositivo: "", hab: "recomendadas", verMas: false, respuesta: "" };
+const ui = { grupo: burbuja || "ia", pagina: "uso", proveedor: "", dispositivo: "", hab: "recomendadas", verMas: false, respuesta: "" };
 let visor = null;
 
 const t = (es, en) => (idioma === "es" ? es : en);
@@ -338,13 +349,10 @@ function dibujarDoc() {
   ui.docModo = ui.docModo || "a-md";
   ui.docFormato = ui.docFormato || "docx";
   const pestanas = `<div class="sub-pestanas"><button data-doc-modo="a-md" class="${ui.docModo === "a-md" ? "activa" : ""}">${t("A Markdown", "To Markdown")}</button>
-      <button data-doc-modo="desde-md" class="${ui.docModo === "desde-md" ? "activa" : ""}">${t("Desde Markdown", "From Markdown")}</button>
-      <button data-doc-modo="audio" class="${ui.docModo === "audio" ? "activa" : ""}">${icono("graphic_eq")} ${t("Audio", "Audio")}</button></div>`;
+      <button data-doc-modo="desde-md" class="${ui.docModo === "desde-md" ? "activa" : ""}">${t("Desde Markdown", "From Markdown")}</button></div>`;
   let html;
-  if (ui.docModo === "audio") {
-    html = pestanas + htmlAudio();
-  } else if (!D.listo) {
-    html = pestanas + `<div class="tarjeta doc-instalar"><span class="circulo">${icono("swap_horiz")}</span>
+  if (!D.listo) {
+    html = `<div class="tarjeta doc-instalar"><span class="circulo">${icono("swap_horiz")}</span>
       <div class="texto"><strong>${t("Conversor de documentos", "Document converter")}</strong>
       <p>${t("PDF, Word y Excel a Markdown (para darle a una IA o a Obsidian) y Markdown o lo que copiaste a Word o PDF. Se instala una vez (≈150 MB, sin contraseña).", "PDF, Word and Excel to Markdown (for an AI or Obsidian) and Markdown or copied text to Word or PDF. Installs once (≈150 MB, no password).")}</p>
       ${D.error_instalacion ? `<small class="error">${esc(D.error_instalacion)}</small>` : ""}</div>
@@ -365,7 +373,7 @@ function dibujarDoc() {
         <button class="mod-chip${ui.docFormato === "docx" ? " ok" : ""}" data-doc-formato="docx">${icono("description")}Word</button>
         <button class="mod-chip${ui.docFormato === "pdf" ? " ok" : ""}" data-doc-formato="pdf">${icono("picture_as_pdf")}PDF</button></div>`}
       ${pdfNo ? `<p class="chico error">${t("Para PDF hace falta LibreOffice (gratis). Word funciona sin él.", "PDF needs LibreOffice (free). Word works without it.")}</p>` : ""}
-      <div class="doc-soltar" id="doc-soltar">${icono(aMd ? "upload_file" : "markdown")}
+      <div class="doc-soltar">${icono(aMd ? "upload_file" : "markdown")}
         <strong>${aMd ? t("Suelta aquí PDF, Word, Excel o CSV", "Drop PDF, Word, Excel or CSV here") : t("Suelta aquí archivos Markdown (.md)", "Drop Markdown (.md) files here")}</strong>
         <span class="tenue chico">${aMd ? t("Sale un .md junto al original, listo para una IA u Obsidian.", "A .md appears next to the original, ready for an AI or Obsidian.") : t("Sale un documento con las tablas bien repartidas.", "You get a document with well-sized tables.")}</span>
         <div class="doc-botones"><button class="boton principal" data-doc="elegir" ${D.eligiendo || pdfNo ? "disabled" : ""}>${icono("folder_open")} ${t("Elegir archivos", "Choose files")}</button>
@@ -386,6 +394,15 @@ function dibujarDoc() {
 const EXT_AUDIO = /\.(mp3|wav|m4a|ogg|oga|opus|flac|aac|wma|amr|mpga|mpeg|mp4|mkv|mov|avi|webm|m4v|3gp|wmv)$/i;
 const reloj = (seg) => { seg = Math.max(0, Math.round(seg)); const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
   return (h ? h + ":" + String(m).padStart(2, "0") : String(m).padStart(2, "0")) + ":" + String(s).padStart(2, "0"); };
+let audioDibujado = "";
+function dibujarAudio() {
+  const caja = $("#audio-contenido");
+  if (!caja || !E.audio) return;
+  const html = htmlAudio();
+  if (html === audioDibujado) return;
+  audioDibujado = html;
+  caja.innerHTML = html;
+}
 function htmlAudio() {
   const A = E.audio;
   if (!A) return "";
@@ -428,7 +445,7 @@ function htmlAudio() {
       ${res}${x.estado === "listo" ? `<button class="redondo" data-aud="abrir" data-id="${x.id}" data-carpeta="1" title="${t("Abrir carpeta", "Open folder")}">${icono("folder_open")}</button>` : ""}</div>`;
   };
   return `${modos}
-    <div class="doc-soltar" id="doc-soltar">${icono("graphic_eq")}
+    <div class="doc-soltar">${icono("graphic_eq")}
       <strong>${t("Suelta aquí un audio o un video", "Drop an audio or video file here")}</strong>
       <span class="tenue chico">${t("Sale un .md con la transcripción junto al original. ", "A .md transcript appears next to the original. ")}${esc(A.usa === "local" ? "Whisper " + A.modelo_local : "Whisper · " + A.api_nombre)}</span>
       <div class="doc-botones"><button class="boton principal" data-aud="elegir" ${A.eligiendo ? "disabled" : ""}>${icono("folder_open")} ${t("Elegir archivos", "Choose files")}</button>${grabar}</div></div>
@@ -446,8 +463,9 @@ async function subirDocumentos(archivos) {
   if (!D) return;
   // los audios y videos van a la transcripción (el servicio los reconoce por la extensión)
   const audios = archivos.filter((f) => EXT_AUDIO.test(f.name));
-  if (audios.length && !(A && A.usa)) { ui.docModo = "audio"; docDibujado = ""; return dibujar(); }
-  if (audios.length) ui.docModo = "audio";
+  if (audios.length) mostrarPieza("audio");
+  if (audios.length && !(A && A.usa)) return;           // la pieza de audio dice cómo prepararla
+  if (audios.length < archivos.length && !audios.length) mostrarPieza("documentos");
   archivos = archivos.filter((f) => EXT_AUDIO.test(f.name) || D.listo);
   const rutas = [];
   ui.docRespuesta = "";
@@ -466,20 +484,32 @@ async function subirDocumentos(archivos) {
     if (!r.ok) ui.docRespuesta = r.mensaje || "";
   }
   docDibujado = "";
+  audioDibujado = "";
   dibujar();
 }
-// soltar archivos en la zona (o en toda la página de documentos / la burbuja de documentos)
+// Soltar archivos: en la página de documentos o de audio, o en cualquier parte de la burbuja del
+// grupo Archivos (cerrada también). Al pasar por encima se marca la zona y, en la burbuja, se abre
+// en la pieza que corresponde (el tipo MIME ya se ve antes de soltar; el nombre, no).
+const dondeSoltar = (e) => e.target.closest && (e.target.closest("#p-doc, #p-audio") || (burbuja === "archivos" && e.target.closest("#b-forma")));
+const zonaActiva = () => document.querySelector(`#${PIEZAS[ui.pagina]} .doc-soltar`);
 document.addEventListener("dragover", (e) => {
-  if (!e.target.closest("#p-doc")) return;
+  if (!dondeSoltar(e)) return;
   e.preventDefault();
-  const zona = $("#doc-soltar");
+  if (burbuja === "archivos") {
+    const tipos = [...e.dataTransfer.items].map((i) => i.type);
+    const audio = tipos.length && tipos.every((x) => /^(audio|video)\//.test(x));
+    if (audio && ui.pagina !== "audio") mostrarPieza("audio");
+    else if (!audio && tipos.some((x) => x && !/^(audio|video)\//.test(x)) && ui.pagina !== "documentos") mostrarPieza("documentos");
+    if (window.akari) window.akari.burbuja("abrir");
+  }
+  const zona = zonaActiva();
   if (zona) zona.classList.add("encima");
 });
-document.addEventListener("dragleave", (e) => { if (!e.relatedTarget || !e.relatedTarget.closest("#p-doc")) { const z = $("#doc-soltar"); if (z) z.classList.remove("encima"); } });
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget || !dondeSoltar({ target: e.relatedTarget })) { const z = zonaActiva(); if (z) z.classList.remove("encima"); } });
 document.addEventListener("drop", (e) => {
-  if (!e.target.closest("#p-doc")) return;
+  if (!dondeSoltar(e)) return;
   e.preventDefault();
-  const z = $("#doc-soltar");
+  const z = zonaActiva();
   if (z) z.classList.remove("encima");
   if (e.dataTransfer.files.length) subirDocumentos([...e.dataTransfer.files]);
 });
@@ -502,9 +532,18 @@ function dibujarCabecera() {
   $("#b-fila").innerHTML = html;
 }
 
+// Un chip por pieza; si el grupo tiene una sola pieza visible, su chip a lo ancho (sin pestañas).
 function htmlCabecera() {
   if (!E) return `<span class="tenue chico b-centro">${t("Iniciando akari…", "Starting akari…")}</span>`;
-  if (burbuja === "ia") {
+  const ps = piezasDe(burbuja);
+  $("#b-fila").classList.toggle("grupo", ps.length > 1);
+  if (ps.length === 1) return htmlChip(ps[0].id, true);
+  return ps.map((p) => `<span class="b-pieza${p.id === ui.pagina ? " elegida" : ""}" data-pieza="${p.id}" style="width:${p.chip}px" title="${esc(nombrePieza(p.id))}">${htmlChip(p.id, false)}</span>`).join("");
+}
+
+// Lo mismo que muestran los chips de las cápsulas de Quickshell (capsulas/Pieza*.qml).
+function htmlChip(id, ancho) {
+  if (id === "uso") {
     const ia = E.ia || {};
     const { prov } = proveedorActual();
     const p = ia[prov];
@@ -514,6 +553,7 @@ function htmlCabecera() {
     const trabajando = !!ultima && ahora() - ultima.t < 25;
     const color = colorLibre(v5);
     const colorF = FAMILIAS_CHIP[fam] ? VAR(FAMILIAS_CHIP[fam]) : VAR("--texto-var");
+    if (!ancho) return `${anillo(v5 ? v5.libre / 100 : 0, color, 20, 4)}<span class="b-num" style="color:${color}">${v5 ? Math.round(v5.libre) + "%" : "—"}</span><i class="b-punto${trabajando ? " late" : ""}"></i>`;
     return `${anillo(v5 ? v5.libre / 100 : 0, color, 22, 4)}
       <span class="b-num" style="color:${color}">${v5 ? Math.round(v5.libre) + "%" : "—"}</span>
       <span class="tenue chico">${!prov ? t("sin Claude ni Codex", "no Claude or Codex") : v5 ? t("libre", "left") : t("sin lectura", "no data")}</span>
@@ -521,7 +561,8 @@ function htmlCabecera() {
       ${fam ? `<span class="b-chip" style="color:${colorF};background:color-mix(in srgb, ${colorF} 16%, transparent)">${icono(ICONO_FAM[fam] || "smart_toy", true)}${esc(fam)}</span>` : ""}
       ${v5 && v5.reinicia ? `<span class="mono chico tenue">${cuenta(v5.reinicia - ahora())}</span>` : ""}
       <i class="b-punto${trabajando ? " late" : ""}"></i>`;
-  } else if (burbuja === "dispositivos") {
+  }
+  if (id === "dispositivos") {
     const lista = (E.dispositivos || {}).dispositivos || [];
     const alerta = lista.some((d) => nivel(d) === "bajo" && !d.cargando);
     $("#b-cabecera").classList.toggle("alerta", alerta);
@@ -530,21 +571,36 @@ function htmlCabecera() {
       return `<span class="b-disp${nv === "bajo" && !d.cargando ? " late" : ""}">${icono(ICONOS_DISP[d.tipo] || "devices", d.conectado).replace('class="icono', `style="color:${colorNivel(nv)}" class="icono`)}
         <span class="mono chico" style="color:${nv === "nada" ? VAR("--contorno") : VAR("--texto-var")}">${textoCorto(d)}${d.cargando ? "⚡" : ""}</span></span>`;
     }).join("") || `<span class="tenue chico b-centro">${t("Sin periféricos todavía", "No devices yet")}</span>`;
-  } else if (burbuja === "documentos") {
-    const D = E.documentos, A = E.audio;
-    const activos = (D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0)
-      + (A ? A.trabajos.filter((x) => x.estado === "cola" || x.estado === "transcribiendo").length : 0);
-    if (A && A.grabacion.desde) return `${icono("radio_button_checked", true).replace('class="icono', 'class="icono late" style="color:var(--error)"')}
-      <span class="tenue chico">${t("Grabando", "Recording")} · <span class="mono">${reloj(ahora() - A.grabacion.desde)}</span></span>`;
-    const ultimo = D && D.trabajos[0];
-    return `${icono("swap_horiz", true).replace('class="icono', `class="icono b-estrella${activos ? " girando" : ""}`)}
-      <span class="tenue chico">${!D ? "—" : !D.listo ? t("Conversor sin instalar", "Converter not installed") : activos ? t("Convirtiendo ", "Converting ") + activos + "…" : ultimo ? esc(ultimo.nombre) : t("Suelta un documento", "Drop a document")}</span>`;
-  } else {
+  }
+  if (id === "modelos") {
+    const M = E.modelos, d = M && M.ollama.descarga, bajando = d && !d.error && d.pct < 100;
+    return icono(bajando ? "progress_activity" : M && M.listo ? "psychology" : "key", !!(M && M.listo))
+      .replace('class="icono', `style="color:${VAR(M && M.listo ? "--primario" : "--terciario")}" class="icono b-estrella${bajando ? " girando" : ""}`)
+      + (ancho ? `<span class="tenue chico">${M && M.listo ? esc(M.modo === "local" ? M.local.texto || M.local.vision : M.modelo) : esc(M ? M.motivo : "")}</span>` : "");
+  }
+  if (id === "habilidades") {
     const H = E.habilidades;
     const instalando = !!H && [...H.recomendadas, ...H.mas].some((r) => r.tarea && r.tarea.estado === "instalando");
     return `${icono("auto_awesome", true).replace('class="icono', `class="icono b-estrella${instalando ? " girando" : ""}`)}
-      <span class="b-num">${H ? H.total : "—"}</span><span class="tenue chico">${t("habilidades", "skills")}</span>`;
+      <span class="b-num">${H ? H.total : "—"}</span>${ancho ? `<span class="tenue chico">${t("habilidades", "skills")}</span>` : ""}`;
   }
+  if (id === "documentos") {
+    const D = E.documentos;
+    const activos = D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0;
+    const ic = icono("swap_horiz", true).replace('class="icono', `${D && !D.listo ? 'style="color:var(--contorno)" ' : ""}class="icono b-estrella${activos ? " girando" : ""}`);
+    if (!ancho) return `${ic}<span class="b-num">${!D ? "—" : activos || D.trabajos.filter((x) => x.estado === "listo").length}</span>`;
+    const ultimo = D && D.trabajos[0];
+    return `${ic}<span class="tenue chico">${!D ? "—" : !D.listo ? t("Conversor sin instalar", "Converter not installed") : activos ? t("Convirtiendo ", "Converting ") + activos + "…" : ultimo ? esc(ultimo.nombre) : t("Suelta un documento", "Drop a document")}</span>`;
+  }
+  if (id === "audio") {
+    const A = E.audio;
+    if (A && A.grabacion.desde) return `${icono("radio_button_checked", true).replace('class="icono', 'class="icono late" style="color:var(--error)"')}
+      <span class="mono chico" style="color:var(--error)">${reloj(ahora() - A.grabacion.desde)}</span>`;
+    const actual = A && A.trabajos.find((x) => x.estado === "transcribiendo");
+    const ic = icono("graphic_eq", true).replace('class="icono', `${A && !A.usa ? 'style="color:var(--contorno)" ' : ""}class="icono b-estrella${actual ? " late" : ""}`);
+    return `${ic}<span class="b-num${actual ? " chico" : ""}"${actual ? ' style="color:var(--primario)"' : ""}>${!A ? "—" : actual ? (actual.pct != null ? actual.pct + "%" : "…") : A.trabajos.filter((x) => x.estado === "listo").length}</span>`;
+  }
+  return "";
 }
 
 // ------------------------------------------------------------------ general
@@ -553,10 +609,53 @@ function dibujar() {
   aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
   if (burbuja) dibujarCabecera();
-  if (ui.pagina === "ia") { dibujarIA(); dibujarModelos(); }
-  if (ui.pagina === "disp") dibujarDisp();
-  if (ui.pagina === "hab") dibujarHab();
-  if (ui.pagina === "doc") dibujarDoc();
+  const dibujos = { dispositivos: dibujarDisp, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, documentos: dibujarDoc, audio: dibujarAudio };
+  if (dibujos[ui.pagina]) dibujos[ui.pagina]();
+}
+
+// ------------------------------------------------------------------ grupos y piezas
+const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
+  habilidades: ["Habilidades", "Skills"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"] };
+const nombrePieza = (id) => (NOMBRES[id] ? t(...NOMBRES[id]) : id);
+const grupoDe = (id) => GRUPOS.find((g) => g.id === id) || GRUPOS[0];
+const grupoDePieza = (pieza) => (GRUPOS.find((g) => g.piezas.some((p) => p.id === pieza)) || GRUPOS[0]).id;
+function piezasDe(grupo) {
+  const ps = grupoDe(grupo).piezas.filter((p) => PIEZAS[p.id]);
+  return soloPieza ? ps.filter((p) => p.id === soloPieza) : ps;
+}
+const ultimaPieza = {};               // grupo -> pieza que se vio por última vez
+function mostrarPieza(id) {
+  if (!PIEZAS[id]) return;
+  ui.pagina = id;
+  if (!burbuja) ui.grupo = grupoDePieza(id);
+  ultimaPieza[ui.grupo] = id;
+  for (const [pieza, seccion] of Object.entries(PIEZAS)) $("#" + seccion).classList.toggle("activa", pieza === id);
+  dibujarPiezas();
+  dibujar();
+}
+function mostrarGrupo(id) {
+  const ps = piezasDe(id);
+  mostrarPieza(ps.some((p) => p.id === ultimaPieza[id]) ? ultimaPieza[id] : ps[0].id);
+}
+// panel: los tres grupos arriba y las piezas del elegido debajo
+function dibujarPiezas() {
+  if (burbuja) return;
+  document.querySelectorAll("#pestanas button").forEach((b) => b.classList.toggle("activa", b.dataset.g === ui.grupo));
+  const ps = piezasDe(ui.grupo);
+  $("#piezas").innerHTML = ps.length > 1
+    ? ps.map((p) => `<button data-pieza="${p.id}" class="${p.id === ui.pagina ? "activa" : ""}">${icono(p.icono)} ${esc(nombrePieza(p.id))}</button>`).join("") : "";
+}
+// en el panel se ven todas las piezas; en la burbuja, solo las que no ocultó el usuario
+async function cargarGrupos() {
+  try {
+    const r = await fetch(burbuja ? "/api/burbujas" : "/api/burbujas?todas=1");
+    const d = await r.json();
+    if (Array.isArray(d.grupos) && d.grupos.length) GRUPOS = d.grupos;
+  } catch { return; }
+  if (burbuja && !piezasDe(burbuja).some((p) => p.id === ui.pagina) && piezasDe(burbuja).length) mostrarPieza(piezasDe(burbuja)[0].id);
+  cabeceraDibujada = "";
+  dibujarPiezas();
+  dibujar();
 }
 
 function traducir() {
@@ -581,12 +680,8 @@ function conectar() {
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("button, .doc-fila[data-doc], .doc-fila[data-aud]");
   if (!b) return;
-  if (b.closest("#pestanas")) {
-    ui.pagina = b.dataset.p;
-    document.querySelectorAll("#pestanas button").forEach((x) => x.classList.toggle("activa", x === b));
-    document.querySelectorAll(".pagina").forEach((x) => x.classList.toggle("activa", x.id === "p-" + ui.pagina));
-    return dibujar();
-  }
+  if (b.closest("#pestanas")) return mostrarGrupo(b.dataset.g);
+  if (b.dataset.pieza) return mostrarPieza(b.dataset.pieza);
   if (b.dataset.prov) { ui.proveedor = b.dataset.prov; return dibujar(); }
   if (b.dataset.disp) { ui.dispositivo = b.dataset.disp; ui.respuesta = ""; return dibujar(); }
   if (b.dataset.accion) {
@@ -612,9 +707,9 @@ document.addEventListener("click", async (e) => {
   if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
   if (b.dataset.ir) {
     ui.modPestana = b.dataset.ir === "modelos-api" ? "api" : ui.modPestana;
-    if (burbuja && window.akari) return window.akari.alternarPanel();
-    document.querySelector('#pestanas button[data-p="ia"]').click();
-    return setTimeout(() => $("#modelos-ia").scrollIntoView({ behavior: "smooth" }), 50);
+    modelosDibujado = "";
+    if (burbuja && !piezasDe(burbuja).some((p) => p.id === "modelos")) return window.akari && window.akari.alternarPanel();
+    return mostrarPieza("modelos");
   }
   if (b.dataset.aud) {
     const acc = b.dataset.aud;
@@ -624,7 +719,7 @@ document.addEventListener("click", async (e) => {
     if (b.dataset.resumir) cuerpo.resumir = b.dataset.resumir === "true";
     const r = await enviar("/api/audio", cuerpo);
     ui.docRespuesta = r.ok ? "" : r.mensaje || t("No se pudo.", "It didn't work.");
-    docDibujado = "";
+    audioDibujado = "";
     return dibujar();
   }
   if (b.dataset.docModo) { ui.docModo = b.dataset.docModo; ui.docRespuesta = ""; return dibujar(); }
@@ -689,15 +784,14 @@ document.addEventListener("submit", async (e) => {
 function iniciarBurbuja() {
   const forma = $("#b-forma"), cab = $("#b-cabecera"), contenido = $("#b-contenido");
   const enviar = (accion, datos) => window.akari && window.akari.burbuja(accion, datos);
-  let F = null, fijada = false, cierre = null, arrastre = null, recienMovida = false;
+  let F = null, fijada = false, cierre = null, arrastre = null, recienMovida = false, chipTocado = null;
 
   document.documentElement.classList.add("transparente");
   document.body.classList.add("vista-burbuja");
   $("#burbuja").hidden = false;
-  const [pagina, seccion] = SECCIONES[burbuja];
-  ui.pagina = pagina;
-  $("#" + seccion).classList.add("activa");
-  contenido.prepend($("#" + seccion));
+  // las secciones de las piezas del grupo pasan al cuerpo; se ve la de la pieza elegida
+  for (const pz of [...grupoDe(burbuja).piezas].reverse()) contenido.prepend($("#" + PIEZAS[pz.id]));
+  mostrarPieza(soloPieza || (PIEZAS[pedida] ? pedida : piezasDe(burbuja)[0].id));
 
   const px = (v) => (typeof v === "number" ? v + "px" : v);
   function poner(estilo) { for (const [k, v] of Object.entries(estilo)) forma.style[k] = px(v); }
@@ -762,9 +856,16 @@ function iniciarBurbuja() {
   // la altura del contenido decide la de la burbuja abierta
   new ResizeObserver(() => enviar("alto", { alto: contenido.offsetHeight })).observe(contenido);
 
+  // cerrada, el chip bajo el puntero decide en qué pieza se abre
+  cab.addEventListener("pointerover", (e) => {
+    const chip = e.target.closest(".b-pieza");
+    if (chip && !arrastre && !(F && F.abierta) && chip.dataset.pieza !== ui.pagina) mostrarPieza(chip.dataset.pieza);
+  });
+
   // arrastrar desde la cabecera; un clic la fija; doble clic, a su sitio de fábrica
   cab.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
+    chipTocado = e.target.closest(".b-pieza");       // con la captura, el clic llega a la cabecera
     cab.setPointerCapture(e.pointerId);
     arrastre = { x: e.screenX, y: e.screenY, moviendo: false };
   });
@@ -791,8 +892,11 @@ function iniciarBurbuja() {
   };
   cab.addEventListener("pointerup", soltar);
   cab.addEventListener("pointercancel", soltar);
-  cab.addEventListener("click", () => {
+  cab.addEventListener("click", (e) => {
     if (recienMovida) return;
+    // abierta, clic en el chip de otra pieza: cambia a ella (no fija ni suelta)
+    const chip = chipTocado || e.target.closest(".b-pieza");
+    if (chip && F && F.abierta && chip.dataset.pieza !== ui.pagina) return mostrarPieza(chip.dataset.pieza);
     fijada = !fijada;
     cab.classList.toggle("fijada", fijada);
     if (fijada || forma.matches(":hover")) enviar("abrir"); else enviar("cerrar");
@@ -807,11 +911,13 @@ if (burbuja) {
   iniciarBurbuja();
 } else {
   $("#panel").hidden = false;
-  const p = new URLSearchParams(location.search).get("pagina");
-  if (p) document.querySelector(`#pestanas button[data-p="${p}"]`)?.click();
+  const p = params.get("pagina");
+  const antes = { ia: "uso", disp: "dispositivos", hab: "habilidades", doc: "documentos" };     // ?pagina= de antes
+  mostrarPieza(PIEZAS[p] ? p : antes[p] || (GRUPOS.some((g) => g.id === p) ? piezasDe(p)[0].id : "uso"));
 }
+cargarGrupos();
 traducir();
 conectar();
 setInterval(dibujar, 15000);      // cuentas regresivas aunque no cambie nada
 // el reloj de la grabación de una reunión
-setInterval(() => { if (E && E.audio && E.audio.grabacion.desde && ui.pagina === "doc" && ui.docModo === "audio") { docDibujado = ""; dibujarDoc(); } }, 1000);
+setInterval(() => { if (E && E.audio && E.audio.grabacion.desde && ui.pagina === "audio") { audioDibujado = ""; dibujarAudio(); } }, 1000);

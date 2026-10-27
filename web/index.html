@@ -10,8 +10,9 @@
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
-  <!-- vista "burbuja": una de las tres burbujas flotantes de la app (Windows, X11, GNOME…), igual
-       que las cápsulas de Quickshell; la sección del panel que le toca se mueve a su cuerpo -->
+  <!-- vista "burbuja": uno de los tres grupos flotantes de la app (Windows, X11, GNOME…), igual que
+       las cápsulas de Quickshell: un chip por pieza en la cabecera y, abierta, la sección del panel
+       de la pieza elegida en su cuerpo (los grupos y sus piezas vienen de GET /api/burbujas) -->
   <div id="burbuja" class="burbuja" hidden>
     <div class="forma" id="b-forma">
       <div class="b-cabecera" id="b-cabecera"><div class="b-fila" id="b-fila"></div></div>
@@ -27,15 +28,16 @@
     <header class="cabecera">
       <div class="marca"><img class="logo" src="icono.png" alt=""><span>akari</span></div>
       <nav class="pestanas" id="pestanas">
-        <button data-p="ia" class="activa"><span class="icono">bolt</span><span data-t="IA|AI"></span></button>
-        <button data-p="disp"><span class="icono">devices</span><span data-t="Dispositivos|Devices"></span></button>
-        <button data-p="hab"><span class="icono">auto_awesome</span><span data-t="Habilidades|Skills"></span></button>
-        <button data-p="doc"><span class="icono">swap_horiz</span><span data-t="Documentos|Documents"></span></button>
+        <button data-g="equipo"><span class="icono">devices</span><span data-t="Equipo|Computer"></span></button>
+        <button data-g="ia" class="activa"><span class="icono">bolt</span><span data-t="IA|AI"></span></button>
+        <button data-g="archivos"><span class="icono">folder_copy</span><span data-t="Archivos|Files"></span></button>
       </nav>
       <span class="estado-servicio" id="servicio" title=""></span>
     </header>
+    <!-- las piezas del grupo elegido -->
+    <nav class="sub-pestanas piezas" id="piezas"></nav>
 
-    <!-- IA -->
+    <!-- IA · Uso de IA -->
     <section id="p-ia" class="pagina activa">
       <div class="sub-pestanas" id="proveedores"></div>
       <div id="sin-ia" class="tarjeta aviso" hidden data-t="No encontré Claude Code ni Codex en este equipo. Cuando los instales e inicies sesión, aquí verás tus límites y tokens.|Neither Claude Code nor Codex was found. Once you install one and sign in, your limits and tokens show up here."></div>
@@ -49,10 +51,14 @@
         <div class="tarjeta" id="semana"></div>
         <div class="tarjeta" id="sesiones"></div>
       </div>
+    </section>
+
+    <!-- IA · Modelos de IA -->
+    <section id="p-modelos" class="pagina">
       <div class="tarjeta modelos" id="modelos-ia"></div>
     </section>
 
-    <!-- Dispositivos -->
+    <!-- Equipo · Dispositivos -->
     <section id="p-disp" class="pagina">
       <div class="tarjeta escenario">
         <canvas id="visor"></canvas>
@@ -65,7 +71,7 @@
       <div class="pie" id="d-pie"></div>
     </section>
 
-    <!-- Habilidades -->
+    <!-- IA · Habilidades -->
     <section id="p-hab" class="pagina">
       <div class="sub-pestanas" id="hab-pestanas">
         <button data-h="recomendadas" class="activa" data-t="Recomendadas|Recommended"></button>
@@ -75,9 +81,14 @@
       <div id="hab-contenido"></div>
     </section>
 
-    <!-- Documentos -->
+    <!-- Archivos · Documentos -->
     <section id="p-doc" class="pagina">
       <div id="doc-contenido"></div>
+    </section>
+
+    <!-- Archivos · Audio -->
+    <section id="p-audio" class="pagina">
+      <div id="audio-contenido" class="doc-columna"></div>
     </section>
   </main>
 

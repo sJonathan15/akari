@@ -2,6 +2,7 @@
 
 GET  /api/estado          todo junto: {ia, dispositivos, habilidades, sistema}
 GET  /eventos             lo mismo por SSE cada vez que cambia
+GET  /api/burbujas        grupos de cápsulas/burbujas y sus piezas (ver grupos.py); ?todas=1 sin ocultar
 POST /api/ia/activar      {"mensaje": "..."}            (ventana de 5 h de Claude)
 POST /api/ia/activador    {"programado", "hora", "mantener", "hasta"}
 POST /api/dispositivos    {"id", "accion", "valor"?}
@@ -21,7 +22,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import PUERTO, VERSION, demo
+from . import PUERTO, VERSION, demo, grupos
 from .comun import CONFIG, IDIOMA, RAIZ, WINDOWS, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
@@ -109,6 +110,8 @@ def crear_manejador(servicio):
                 return self._json(servicio.estado())
             if ruta == "/eventos":
                 return self._eventos()
+            if ruta == "/api/burbujas":       # ?todas=1: también las ocultas (el panel las muestra todas)
+                return self._json(grupos.burbujas(todas="todas=1" in self.path))
             base, carpeta = ("/modelos/", ESTATICOS["/modelos/"]) if ruta.startswith("/modelos/") else ("/", ESTATICOS["/"])
             archivo = (carpeta / (ruta[len(base):] or "index.html")).resolve()
             if carpeta.resolve() not in archivo.parents or not archivo.is_file():

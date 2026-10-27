@@ -32,6 +32,9 @@ PanelWindow {
     property bool aceptaArchivos: false     // se le pueden soltar archivos (se abre al arrastrar encima)
     property bool archivoEncima: false
     signal soltaron(var urls)               // ["file:///…", …]
+    signal archivoEntro(var urls)           // al empezar a arrastrar encima (para elegir dónde abrirse)
+    // clic en la cabecera: si esta función (punto en la escena) dice que lo atendió, no se fija/suelta
+    property var tocarCabecera: null
     property Component cabecera
     property Component cuerpo
     readonly property int altoCuerpo: cargaCuerpo.item ? cargaCuerpo.item.implicitHeight : 0
@@ -192,7 +195,12 @@ PanelWindow {
             anchors.fill: parent
             enabled: ventana.aceptaArchivos && !ventana.moviendo
             keys: ["text/uri-list"]
-            onEntered: { ventana.archivoEncima = true; cierre.stop(); ventana.abierta = true; }
+            onEntered: drag => {
+                ventana.archivoEncima = true;
+                cierre.stop();
+                if (drag.hasUrls) ventana.archivoEntro(Array.from(drag.urls).map(u => u.toString()));
+                ventana.abierta = true;
+            }
             onExited: { ventana.archivoEncima = false; cierre.restart(); }
             onDropped: drop => {
                 ventana.archivoEncima = false;
@@ -226,7 +234,8 @@ PanelWindow {
 
             // clic: la deja fija abierta (otro clic la suelta); doble clic: a su lugar de fábrica
             TapHandler {
-                onTapped: {
+                onTapped: eventPoint => {
+                    if (ventana.tocarCabecera && ventana.tocarCabecera(eventPoint.scenePosition)) return;
                     ventana.fijada = !ventana.fijada;
                     ventana.abierta = ventana.fijada || forma.containsHover;
                 }
