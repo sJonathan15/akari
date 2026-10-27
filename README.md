@@ -57,7 +57,26 @@ irm https://raw.githubusercontent.com/sJonathan15/akari/main/install.ps1 | iex
 ```
 
 or download `akari-setup-x64.exe` from [Releases](https://github.com/sJonathan15/akari/releases) and run it.
-It carries Python and the service inside: nothing else to install. To remove it: *Settings → Apps → akari*.
+It installs for your user (no admin) and carries Python and the service inside: nothing else to install.
+To remove it: *Settings → Apps → akari* (your settings in `%APPDATA%\akari` are kept).
+
+> **SmartScreen:** the installer is not code-signed yet, so Windows may show *“Windows protected your PC”*.
+> Click **More info → Run anyway**. (The installer is built by GitHub Actions from this repository.)
+
+**Lightweight on Windows.** The Windows app (`escritorio/`, Tauri 2) uses WebView2, which ships with
+Windows 10/11, instead of bundling Chromium. Closed groups are drawn natively (no browser at all): WebView2
+only starts when you open one, and is freed a minute after you close it. Measured by CI on `windows-latest`
+on every push (it fails if a target is missed):
+
+| | Electron app (before) | Windows app (now) | Target |
+|---|---|---|---|
+| Installer | 122 MB | **15.7 MB** | ≤ 40 MB |
+| RAM at rest (Working Set, all processes) | 319 MB | **51 MB** | ≤ 150 MB |
+| CPU at rest | 0.11 % | **0.02 %** | ≈ 0 % |
+| RAM 75 s after opening and closing a bubble | — | 59 MB | — |
+
+The first time you open a bubble after starting, WebView2 takes a moment to start (5 s on the CI machine,
+less on a normal PC); while it's alive, reopening is instant.
 
 Linux, from a clone:
 
@@ -181,14 +200,17 @@ the ones it installed. The list lives in [`akari/catalogo.json`](akari/catalogo.
 akari/        Python service (stdlib only): ia.py (Claude Code + Codex), dispositivos.py, habilidades.py, servidor.py,
               windows.py (Windows devices), dbus_nativo.py (pure-Python D-Bus), tema.py (desktop colors)
 capsulas/     Quickshell capsules (QML)            web/       full panel + bubbles (three.js 3D)
-app/          Electron app (bubbles) → AppImage / Windows installer      gnome/     GNOME Shell extension
+app/          Electron app (bubbles, Linux X11 / GNOME) → AppImage       gnome/     GNOME Shell extension
+escritorio/   Windows app (Rust, Tauri 2 + WebView2, native closed pills) → per-user NSIS installer
 modelos/      CC0 3D models + herramientas/modelos.py
 pruebas/      servicio/: service tests (Linux + Windows) · gnome/: headless GNOME Shell test (Docker)
 ```
 
 - Run from the repo: `bin/akari servicio` and `AKARI_RAIZ=$PWD qs -p capsulas` (or `cd app && npm start` for the bubbles).
 - Tests: `python3 -m unittest discover -s pruebas/servicio -p "prueba_*.py"` (CI runs them on Linux and Windows).
-- AppImage: `cd app && npm install && npm run appimage` · Windows installer (on Windows): `cd app && npm install && npm run windows`.
+- AppImage: `cd app && npm install && npm run appimage`.
+- Windows app (`escritorio/`, Rust + Tauri 2): `cd escritorio && powershell -File scripts/python.ps1 && npx @tauri-apps/cli@2.12.1 build --bundles nsis`
+  (on Windows; `cargo test` runs anywhere). `scripts/medir.ps1` measures RAM/CPU like the CI does.
 - Pushing a `v*` tag builds the AppImages (x86_64, arm64) and the Windows installer and publishes them in Releases.
 - GNOME extension test: `docker build -t akari-gnome pruebas/gnome && pruebas/gnome/probar.sh`.
 
@@ -245,8 +267,27 @@ curl -fsSL https://raw.githubusercontent.com/sJonathan15/akari/main/install.sh |
 irm https://raw.githubusercontent.com/sJonathan15/akari/main/install.ps1 | iex
 ```
 
-o baja `akari-setup-x64.exe` de [Releases](https://github.com/sJonathan15/akari/releases) y ejecútalo: trae dentro
-Python y el servicio, no hay que instalar nada más. Para quitarlo: *Configuración → Aplicaciones → akari*.
+o baja `akari-setup-x64.exe` de [Releases](https://github.com/sJonathan15/akari/releases) y ejecútalo: se instala para
+tu usuario (sin admin) y trae dentro Python y el servicio, no hay que instalar nada más. Para quitarlo:
+*Configuración → Aplicaciones → akari* (tus ajustes de `%APPDATA%\akari` se quedan).
+
+> **SmartScreen:** el instalador todavía no está firmado, así que Windows puede decir *«Windows protegió su PC»*.
+> Haz clic en **Más información → Ejecutar de todas formas**. (Lo compila GitHub Actions desde este repositorio.)
+
+**Liviano en Windows.** La app de Windows (`escritorio/`, Tauri 2) usa WebView2, que ya viene en Windows 10/11, en
+lugar de traer su propio Chromium. Los grupos cerrados se dibujan de forma nativa (sin navegador): WebView2 solo
+arranca al abrir uno y se libera un minuto después de cerrarlo. Medido por el CI en `windows-latest` en cada push
+(falla si no se cumple una meta):
+
+| | App Electron (antes) | App de Windows (ahora) | Meta |
+|---|---|---|---|
+| Instalador | 122 MB | **15,7 MB** | ≤ 40 MB |
+| RAM en reposo (Working Set, todos los procesos) | 319 MB | **51 MB** | ≤ 150 MB |
+| CPU en reposo | 0,11 % | **0,02 %** | ≈ 0 % |
+| RAM 75 s después de abrir y cerrar una burbuja | — | 59 MB | — |
+
+La primera vez que abres una burbuja tras arrancar, WebView2 tarda un momento en iniciar (5 s en la máquina del
+CI, menos en un PC normal); mientras sigue vivo, reabrir es instantáneo.
 
 El instalador de Linux detecta tu distribución y tu escritorio, instala lo que falta (Quickshell desde los
 repositorios, el AUR, el COPR de Fedora o Nix), deja los servicios de `systemd --user` si hay systemd y, en todo
