@@ -97,7 +97,7 @@ class Cerebro(unittest.TestCase):
                    "LOCALAPPDATA": os.path.join(h, "AppData", "Local"), "XDG_CONFIG_HOME": os.path.join(h, ".config"),
                    "XDG_CACHE_HOME": os.path.join(h, ".cache"), "XDG_DATA_HOME": os.path.join(h, ".local", "share"),
                    "LANG": "es_ES.UTF-8", "OLLAMA_HOST": "http://127.0.0.1:9", "CLAUDE_CONFIG_DIR": os.path.join(h, ".claude"),
-                   "CODEX_HOME": os.path.join(h, ".codex")}
+                   "CODEX_HOME": os.path.join(h, ".codex"), "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
         cls.env.pop("CLAUDECODE", None)
         cls.ollama = http.server.ThreadingHTTPServer(("127.0.0.1", 0), OllamaFalso)
         threading.Thread(target=cls.ollama.serve_forever, daemon=True).start()
@@ -235,8 +235,11 @@ class Cerebro(unittest.TestCase):
     def test_herramientas_del_asistente(self):
         salida = self.py("from akari import cerebro as C; print(C.usar_herramienta('buscar_archivo', {'consulta': 'cv'}))")
         self.assertIn("CV-2026.pdf", salida)
-        salida = self.py("from akari import cerebro as C; print(C.abrir_archivo('/etc/hostname')[1])")
-        self.assertTrue(salida.strip())          # fuera de las carpetas del cerebro: no se abre
+        fuera = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)        # existe, pero fuera del cerebro
+        fuera.close()
+        salida = self.py(f"from akari import cerebro as C; ok, m = C.abrir_archivo({fuera.name!r}); print(ok, m)")
+        os.unlink(fuera.name)
+        self.assertTrue(salida.startswith("False"))
 
     def test_busqueda_por_significado(self):
         # el texto de los documentos solo se lee en las carpetas que el usuario activa
