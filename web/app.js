@@ -7,11 +7,12 @@ import { Visor } from "./visor3d.js";
 const params = new URLSearchParams(location.search);
 const vista = params.get("vista");
 // la sección del panel de cada pieza
-const PIEZAS = { dispositivos: "p-disp", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", documentos: "p-doc", audio: "p-audio" };
+const PIEZAS = { dispositivos: "p-disp", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", herramientas: "p-herr",
+  documentos: "p-doc", audio: "p-audio" };
 // copia de akari/grupos.py para el primer dibujo; se reemplaza con GET /api/burbujas
 let GRUPOS = [
   { id: "equipo", piezas: [{ id: "dispositivos", icono: "devices", chip: 254 }] },
-  { id: "ia", piezas: [{ id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }] },
+  { id: "ia", piezas: [{ id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }, { id: "herramientas", icono: "construction", chip: 64 }] },
   { id: "archivos", piezas: [{ id: "documentos", icono: "swap_horiz", chip: 58 }, { id: "audio", icono: "graphic_eq", chip: 72 }] },
 ];
 // burbuja: el grupo; c= de antes (una burbuja por función) sigue andando
@@ -337,6 +338,38 @@ function dibujarHab() {
   }
 }
 
+// ------------------------------------------------------------------ herramientas
+// Herramientas de terminal para quien usa Claude Code / Codex (akari/herramientas.py). Si la única
+// forma de instalar pide contraseña, se copia el comando o se abre en una terminal.
+let herrDibujado = "";
+function dibujarHerr() {
+  const caja = $("#herr-contenido");
+  const T = E.herramientas;
+  if (!caja || !T) return;
+  const fila = (x) => {
+    const tarea = x.tarea || {}, m = x.metodo;
+    const boton = x.instalada ? `<button class="listo" disabled title="${esc(x.ruta || x.nota)}">${icono("check")}</button>`
+      : tarea.estado === "instalando" ? `<button class="redondo" disabled>${icono("progress_activity").replace('class="icono', 'class="icono girando')}</button>`
+      : !m ? `<a class="boton" href="${esc(x.web)}" target="_blank" rel="noreferrer">${t("Ver cómo", "How to")} ${icono("open_in_new")}</a>`
+      : m.sudo ? `<button class="redondo" data-herr="copiar" data-id="${x.id}" data-texto="${esc(m.texto)}" title="${t("Copiar el comando", "Copy the command")}">${icono("content_copy")}</button>
+          <button class="boton" data-herr="terminal" data-id="${x.id}" title="${t("Abrir una terminal con el comando (pide tu contraseña)", "Open a terminal with the command (asks your password)")}">${icono("terminal")} ${t("Terminal", "Terminal")}</button>`
+      : `<button class="boton principal" data-herr="instalar" data-id="${x.id}">${t("Instalar", "Install")}</button>`;
+    const pie = tarea.estado === "error" ? `<small class="error">${esc(tarea.mensaje)}</small>`
+      : x.instalada ? (x.nota ? `<small class="tenue">${esc(x.nota)}</small>` : "")
+      : m ? `<small class="mono tenue">${m.sudo ? icono("lock") + " " : ""}${esc(m.texto)}</small>`
+      : x.nota ? `<small class="tenue">${esc(x.nota)}</small>` : "";
+    return `<div class="mod-fila${x.instalada ? "" : " herr-falta"}"><span class="circulo">${icono(x.icono, x.instalada)}</span>
+      <div class="texto"><strong>${esc(x.nombre)}</strong><p>${esc(x.detalle)}</p>${pie}</div>${boton}</div>`;
+  };
+  const html = `<div class="tarjeta"><h3>${t("Herramientas para tu IA", "Tools for your AI")}</h3>
+    <p class="tenue chico">${t("Programas de terminal que Claude Code y Codex aprovechan: seguridad, contexto y gasto. Se instalan con lo que ya tienes (uv, npm, Homebrew, winget…).", "Terminal programs Claude Code and Codex make good use of: security, context and spending. They install with what you already have (uv, npm, Homebrew, winget…).")}</p>
+    ${ui.herrRespuesta ? `<p class="chico mod-respuesta">${esc(ui.herrRespuesta)}</p>` : ""}
+    <div class="mod-lista">${T.lista.map(fila).join("")}</div></div>`;
+  if (html === herrDibujado) return;
+  herrDibujado = html;
+  caja.innerHTML = html;
+}
+
 // ------------------------------------------------------------------ documentos
 // Conversor PDF / Word / Excel ⇄ Markdown. Lo soltado sube al servicio (o va su ruta, si la app
 // de escritorio la da con window.akari.rutaDe) y el resultado queda junto al original.
@@ -584,6 +617,12 @@ function htmlChip(id, ancho) {
     return `${icono("auto_awesome", true).replace('class="icono', `class="icono b-estrella${instalando ? " girando" : ""}`)}
       <span class="b-num">${H ? H.total : "—"}</span>${ancho ? `<span class="tenue chico">${t("habilidades", "skills")}</span>` : ""}`;
   }
+  if (id === "herramientas") {
+    const T = E.herramientas;
+    const instalando = !!T && T.lista.some((x) => x.tarea && x.tarea.estado === "instalando");
+    return `${icono("construction", true).replace('class="icono', `class="icono b-estrella${instalando ? " late" : ""}`)}
+      <span class="b-num${ancho ? "" : " chico"}">${T ? T.instaladas + "/" + T.total : "—"}</span>${ancho ? `<span class="tenue chico">${t("herramientas", "tools")}</span>` : ""}`;
+  }
   if (id === "documentos") {
     const D = E.documentos;
     const activos = D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0;
@@ -609,13 +648,13 @@ function dibujar() {
   aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
   if (burbuja) dibujarCabecera();
-  const dibujos = { dispositivos: dibujarDisp, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, documentos: dibujarDoc, audio: dibujarAudio };
+  const dibujos = { dispositivos: dibujarDisp, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio };
   if (dibujos[ui.pagina]) dibujos[ui.pagina]();
 }
 
 // ------------------------------------------------------------------ grupos y piezas
 const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
-  habilidades: ["Habilidades", "Skills"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"] };
+  habilidades: ["Habilidades", "Skills"], herramientas: ["Herramientas", "Tools"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"] };
 const nombrePieza = (id) => (NOMBRES[id] ? t(...NOMBRES[id]) : id);
 const grupoDe = (id) => GRUPOS.find((g) => g.id === id) || GRUPOS[0];
 const grupoDePieza = (pieza) => (GRUPOS.find((g) => g.piezas.some((p) => p.id === pieza)) || GRUPOS[0]).id;
@@ -670,7 +709,7 @@ function conectar() {
   const fuente = new EventSource("/eventos");
   fuente.onmessage = (m) => {
     E = JSON.parse(m.data);
-    if (E.idioma && E.idioma !== idioma) { idioma = E.idioma; traducir(); }
+    if (E.idioma && E.idioma !== idioma) { idioma = E.idioma; traducir(); dibujarPiezas(); }
     dibujar();
   };
   fuente.onerror = () => { $("#servicio").classList.remove("vivo"); };
@@ -710,6 +749,17 @@ document.addEventListener("click", async (e) => {
     modelosDibujado = "";
     if (burbuja && !piezasDe(burbuja).some((p) => p.id === "modelos")) return window.akari && window.akari.alternarPanel();
     return mostrarPieza("modelos");
+  }
+  if (b.dataset.herr) {
+    const acc = b.dataset.herr;
+    if (acc === "copiar" && navigator.clipboard) {
+      try { await navigator.clipboard.writeText(b.dataset.texto); ui.herrRespuesta = t("Comando copiado: pégalo en una terminal.", "Command copied: paste it in a terminal."); herrDibujado = ""; return dibujar(); } catch { /* lo copia el servicio */ }
+    }
+    b.disabled = true;
+    const r = await enviar("/api/herramientas", { accion: acc, id: b.dataset.id });
+    ui.herrRespuesta = r.mensaje || (r.ok ? "" : t("No se pudo.", "It didn't work."));
+    herrDibujado = "";
+    return dibujar();
   }
   if (b.dataset.aud) {
     const acc = b.dataset.aud;

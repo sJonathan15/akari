@@ -376,3 +376,7 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .forma.abierta .b-pieza.elegida { background: color-mix(in srgb, var(--primario) 16%, transparent); }
 .forma.abierta .b-pieza:not(.elegida):hover { background: var(--contenedor-alto); cursor: pointer; }
 #audio-contenido { display: flex; flex-direction: column; gap: 10px; }
+.mod-fila small.mono { font-size: 10.5px; word-break: break-all; }
+.mod-fila small .icono { font-size: 12px; vertical-align: -2px; }
+.mod-fila > a.boton { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: inherit; white-space: nowrap; }
+.mod-fila > a.boton .icono { font-size: 15px; }

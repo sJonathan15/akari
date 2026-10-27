@@ -161,3 +161,86 @@ def abrir(destino):
         return True
     except OSError:
         return False
+
+
+# ---------------------------------------------------------------- programas del usuario
+
+def carpetas_extra():
+    """Donde quedan los programas instalados sin contraseña (uv, pipx, cargo, go, npm, Homebrew,
+    winget): el servicio arranca con un PATH corto (systemd, autoarranque) que no las incluye."""
+    carpetas = [HOME / ".local" / "bin", HOME / ".cargo" / "bin", HOME / "go" / "bin", HOME / ".npm-global" / "bin",
+                HOME / ".bun" / "bin", HOME / ".volta" / "bin"]
+    if WINDOWS:
+        local, roaming = Path(os.environ.get("LOCALAPPDATA") or HOME), Path(os.environ.get("APPDATA") or HOME)
+        carpetas += [local / "Microsoft" / "WinGet" / "Links", roaming / "npm", HOME / "scoop" / "shims"]
+    else:
+        carpetas += [Path("/home/linuxbrew/.linuxbrew/bin"), HOME / ".linuxbrew" / "bin", Path("/opt/homebrew/bin"),
+                     Path("/usr/local/bin")]
+    return [c for c in carpetas if c.is_dir()]
+
+
+def buscar(binario):
+    """Ruta de un programa, en el PATH o en las carpetas de carpetas_extra()."""
+    encontrado = shutil.which(binario)
+    if encontrado:
+        return encontrado
+    return shutil.which(binario, path=os.pathsep.join(str(c) for c in carpetas_extra()))
+
+
+def entorno_completo():
+    """os.environ con las carpetas de carpetas_extra() en el PATH (para lo que lanza el servicio)."""
+    env = dict(os.environ)
+    actuales = env.get("PATH", "").split(os.pathsep)
+    env["PATH"] = os.pathsep.join(actuales + [str(c) for c in carpetas_extra() if str(c) not in actuales])
+    return env
+
+
+def terminal(orden, titulo="akari"):
+    """Abre una terminal que corre `orden` (texto de shell) y queda abierta para leer el resultado
+    o escribir la contraseña. Devuelve False si no encontró ninguna terminal."""
+    if WINDOWS:
+        ps = ["powershell.exe", "-NoExit", "-NoProfile", "-Command", orden]
+        wt = buscar("wt.exe") or buscar("wt")
+        try:
+            if wt:
+                subprocess.Popen([wt, "new-tab", "--title", titulo, *ps], env=entorno_completo())
+            else:
+                subprocess.Popen(ps, creationflags=0x00000010, env=entorno_completo())     # CREATE_NEW_CONSOLE
+            return True
+        except OSError:
+            return False
+    shell = buscar("bash") or "sh"
+    pausa = t("Enter para cerrar", "Press Enter to close")
+    script = [shell, "-c", f'{orden}; echo; printf "{pausa}… "; read _']
+    candidatas = [os.environ.get("TERMINAL", ""), "x-terminal-emulator", "kgx", "gnome-terminal", "ptyxis", "konsole",
+                  "xfce4-terminal", "ghostty", "kitty", "alacritty", "foot", "wezterm", "tilix", "terminator", "xterm"]
+    forma = {"kgx": ["--"], "gnome-terminal": ["--"], "ptyxis": ["--"], "xfce4-terminal": ["-x"], "kitty": [], "foot": [],
+             "wezterm": ["start", "--"], "terminator": ["-x"]}
+    for nombre in candidatas:
+        exe = buscar(nombre) if nombre else None
+        if not exe:
+            continue
+        try:
+            subprocess.Popen([exe, *forma.get(Path(nombre).name, ["-e"]), *script], env=entorno_completo(),
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def copiar(texto):
+    """Pone `texto` en el portapapeles. True si pudo."""
+    if WINDOWS:
+        env = {**os.environ, "AKARI_TEXTO": texto}
+        return powershell("Set-Clipboard -Value $env:AKARI_TEXTO", 10, env) is not None
+    for orden in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]):
+        if os.environ.get("WAYLAND_DISPLAY") is None and orden[0] == "wl-copy":
+            continue
+        if tiene(orden[0]):
+            try:
+                subprocess.run(orden, input=texto, text=True, timeout=5, check=True)
+                return True
+            except (OSError, subprocess.SubprocessError):
+                continue
+    return False

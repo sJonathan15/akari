@@ -18,6 +18,7 @@ GRUPOS = [
          {"id": "uso", "nombre": ("Uso de IA", "AI usage"), "icono": "bolt", "chip": 92},
          {"id": "modelos", "nombre": ("Modelos de IA", "AI models"), "icono": "psychology", "chip": 44},
          {"id": "habilidades", "nombre": ("Habilidades", "Skills"), "icono": "auto_awesome", "chip": 58},
+         {"id": "herramientas", "nombre": ("Herramientas", "Tools"), "icono": "construction", "chip": 64},
      ]},
     {"id": "archivos", "nombre": ("Archivos", "Files"), "lado": "derecha", "hueco": 404, "anchoAbierto": 380,
      "altoMaximo": 760, "archivos": True, "piezas": [

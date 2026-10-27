@@ -15,6 +15,7 @@ Singleton {
     readonly property var modelos: estado ? estado.modelos : null
     readonly property var docs: estado ? estado.documentos : null
     readonly property var audio: estado ? estado.audio : null
+    readonly property var herramientas: estado ? estado.herramientas : null
 
     function actualizar() {
         const x = new XMLHttpRequest();

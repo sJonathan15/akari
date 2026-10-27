@@ -13,6 +13,7 @@ POST /api/documentos      {"accion", ...}           (conversor de documentos ⇄
 POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Akari-Formato
                           (los audios y videos van a la transcripción)
 POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
+POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -26,6 +27,7 @@ from . import PUERTO, VERSION, demo, grupos
 from .comun import CONFIG, IDIOMA, RAIZ, WINDOWS, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
+from .herramientas import MonitorHerramientas
 from .ia import MonitorIA
 from .modelos import MonitorModelos
 from .documentos import Conversor
@@ -47,6 +49,7 @@ class Servicio:
         self.ia = MonitorIA(self.cambio)
         self.dispositivos = MonitorDispositivos(self.cambio)
         self.habilidades = MonitorHabilidades(self.cambio)
+        self.herramientas = MonitorHerramientas(self.cambio)
         self.modelos = MonitorModelos(self.cambio)
         self.documentos = Conversor(self.cambio)
         self.audio = Transcriptor(self.cambio, self.modelos)
@@ -69,7 +72,8 @@ class Servicio:
         if DEMO:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-                "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado}
+                "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
+                "herramientas": self.herramientas.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -81,7 +85,7 @@ class Servicio:
 
     def arrancar(self):
         for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5),
-                                (self.revisar_tema, 5), (self.modelos.paso, 10)):
+                                (self.revisar_tema, 5), (self.modelos.paso, 10), (self.herramientas.paso, 5)):
             threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
 
@@ -151,6 +155,9 @@ def crear_manejador(servicio):
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/documentos":
                 return self._json(self._documentos(datos))
+            if ruta == "/api/herramientas":
+                ok, mensaje = servicio.herramientas.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/audio":
                 ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
