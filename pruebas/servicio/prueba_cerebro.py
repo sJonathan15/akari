@@ -15,13 +15,13 @@ import unittest
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
-SECRETO = "contenido-que-no-debe-copiarse-7Q2X"
+CONTENIDO = "texto del capitulo tres que la boveda no copia"
 
 
 def armar(h):
     archivos = {
         "Documentos/Universidad/2026/tesis/informe de la tesis.docx": "x",
-        "Documentos/Universidad/2026/tesis/capitulo-3.md": SECRETO,
+        "Documentos/Universidad/2026/tesis/capitulo-3.md": CONTENIDO,
         "Descargas/CV-2026.pdf": "x",
         "Trabajo/Informes/ventas.xlsx": "x",
         "Proyectos/web/package.json": '{"name": "web"}',
@@ -105,7 +105,7 @@ class Cerebro(unittest.TestCase):
         self.assertTrue((Path(self.boveda) / "Mapa" / "Universidad.md").exists())
         for n in notas:
             texto = n.read_text(encoding="utf-8")
-            self.assertNotIn(SECRETO, texto, n)
+            self.assertNotIn(CONTENIDO, texto, n)
             self.assertIn("<!-- akari -->", texto)
         self.assertIn("file://", (Path(self.boveda) / "Mapa" / "Universidad.md").read_text(encoding="utf-8"))
 
