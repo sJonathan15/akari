@@ -14,3 +14,7 @@ escritorio/recursos/python/*
 !escritorio/recursos/python/.gitkeep
 escritorio/*.json.tmp
 escritorio/permissions/
+
+# lo escribe el CI (actualizaciones firmadas)
+app/clave-actualizar.pub
+escritorio/firma.conf.json

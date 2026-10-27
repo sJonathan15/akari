@@ -1,8 +1,12 @@
 # Pruebas del servicio en Linux y en Windows de verdad, y compilación de la app:
 #   * en cada push (cualquier rama) y pull request: pruebas (y en Windows, la lectura real de PnP y la batería);
 #   * en main y en la rama de trabajo: la app de Windows (Tauri), instalada y medida;
-#   * con una etiqueta v* (p. ej. v0.2.0): AppImage x86_64 + arm64 e instalador de Windows,
-#     publicados en Releases (install.sh e install.ps1 bajan de ahí la última versión).
+#   * con una etiqueta v* (p. ej. v0.2.0 o v0.2.0-beta.2, que sale como prerelease): AppImage x86_64 +
+#     arm64 e instalador de Windows, con la versión de la etiqueta, publicados en Releases (install.sh
+#     e install.ps1 bajan de ahí la última versión). Con la clave de firma en los secretos del CI
+#     (TAURI_SIGNING_PRIVATE_KEY y _PASSWORD; la pública en la variable TAURI_SIGNING_PUBLIC_KEY)
+#     también sus firmas (.sig) y latest.json, de donde se actualizan solas las apps. La clave
+#     privada nunca va en el repo.
 name: compilar
 
 on:
@@ -52,12 +56,33 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
+      - name: Versión de la etiqueta
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: .
+        run: python3 herramientas/publicar.py version "$GITHUB_REF_NAME"
+      - name: Clave pública de las actualizaciones (app/actualizar.js)
+        if: vars.TAURI_SIGNING_PUBLIC_KEY != ''
+        env:
+          CLAVE: ${{ vars.TAURI_SIGNING_PUBLIC_KEY }}
+        run: printf '%s\n' "$CLAVE" > clave-actualizar.pub
       - run: npm ci
       - run: npx electron-builder --linux AppImage --x64 --arm64 --publish never
+      - name: Firmar los AppImage para las actualizaciones
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::Sin TAURI_SIGNING_PRIVATE_KEY: los AppImage salen sin firma y no se actualizarán solos"
+            exit 0
+          fi
+          for f in dist/*.AppImage; do npx --yes @tauri-apps/cli@2.12.1 signer sign "$f"; done
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: app/dist/*.AppImage
+          path: |
+            app/dist/*.AppImage
+            app/dist/*.AppImage.sig
 
   # La app de Windows (Tauri + WebView2, escritorio/): se compila en cada push de main o de la
   # rama de trabajo, se instala en silencio, se mide y falla si no cumple las metas.
@@ -82,17 +107,37 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: escritorio
+      - name: Versión de la etiqueta
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: .
+        run: python herramientas/publicar.py version "$env:GITHUB_REF_NAME"
       - name: Pruebas de la geometría (Rust)
         run: cargo test --quiet
       - name: Python embebido (recortado)
         run: ./scripts/python.ps1
       - name: Compilar el instalador
-        run: npx --yes @tauri-apps/cli@2.12.1 build --bundles nsis --ci
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CLAVE_PUBLICA: ${{ vars.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          # con la clave, el instalador sale con su firma para el updater (.sig) y la app trae la
+          # clave pública (src/actualizar.rs); sin ella, la app no se actualiza sola
+          $extra = @()
+          if ($env:TAURI_SIGNING_PRIVATE_KEY -and $env:CLAVE_PUBLICA) {
+            @{ bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = $env:CLAVE_PUBLICA } } } |
+              ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 firma.conf.json
+            $extra = @('--config', 'firma.conf.json')
+          } elseif ($env:GITHUB_REF -like 'refs/tags/v*') {
+            Write-Host '::warning::Sin TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PUBLIC_KEY: el instalador no se actualizará solo'
+          }
+          npx --yes @tauri-apps/cli@2.12.1 build --bundles nsis --ci @extra
       - name: Instalador
         run: |
           $exe = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item $exe.FullName dist/akari-setup-x64.exe
+          if (Test-Path "$($exe.FullName).sig") { Copy-Item "$($exe.FullName).sig" dist/akari-setup-x64.exe.sig }
           '{0:N1} MB' -f ($exe.Length / 1MB)
       - name: Instalar en silencio (por usuario, sin admin)
         run: |
@@ -166,7 +211,7 @@ jobs:
         if: always()
         with:
           name: windows
-          path: escritorio/dist/akari-setup-x64.exe
+          path: escritorio/dist/akari-setup-x64.exe*
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -217,13 +262,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: latest.json (de donde se actualizan las apps)
+        run: python3 herramientas/publicar.py latest "$GITHUB_REF_NAME" dist
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.AppImage
+            dist/*.AppImage.sig
             dist/akari-setup-x64.exe
+            dist/akari-setup-x64.exe.sig
+            dist/latest.json
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: false
           generate_release_notes: true

@@ -126,4 +126,26 @@ Por partes, cada una con su commit:
    - ⬜ Sin probar de verdad: que el instalador de NSIS en modo actualización vuelva a abrir la app
      sola (si no, añadir en `nsis/ganchos.nsh` un `Exec` de `akari.exe` en `NSIS_HOOK_POSTINSTALL`
      cuando venga `/UPDATE`), y el reemplazo del AppImage en un escritorio real.
-4. ⬜ CI: en cada etiqueta `v*` publica AppImage, `.exe`, sus firmas y `latest.json`.
+4. ✅ CI (`.github/workflows/compilar.yml` + `herramientas/publicar.py`): con una etiqueta `v*`
+   pone la versión de la etiqueta en `akari/__init__.py`, `tauri.conf.json`, `Cargo.toml` y
+   `app/package.json`; compila el `.exe` con `createUpdaterArtifacts` y la clave pública (por
+   `--config firma.conf.json`), firma los AppImage con `tauri signer sign`, escribe `latest.json`
+   (`windows-x86_64`, `linux-x86_64`, `linux-aarch64`) y publica todo; una etiqueta con `-`
+   (`v0.2.0-beta.2`) sale como prerelease. Sin la clave, publica igual pero sin `.sig` ni
+   `latest.json` (con un aviso), y las apps no se actualizan solas.
+
+### Lo que falta para que funcione (lo hace el dueño del repo, una vez)
+
+1. En tu equipo (no en el repo): `npx @tauri-apps/cli@2.12.1 signer generate -w ~/.tauri/akari.key`
+   (pide una contraseña). Guarda `akari.key` fuera del repo y con copia de seguridad: si se pierde,
+   las apps instaladas ya no aceptan actualizaciones nuevas.
+2. GitHub → Settings → Secrets and variables → Actions:
+   - **Secrets**: `TAURI_SIGNING_PRIVATE_KEY` = el contenido de `akari.key`;
+     `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = su contraseña.
+   - **Variables**: `TAURI_SIGNING_PUBLIC_KEY` = el contenido de `akari.key.pub` (es pública).
+3. Publicar una etiqueta, p. ej. `v0.2.0-beta.2`, y revisar que la release traiga `latest.json`.
+   La beta.1 ya publicada no tiene updater: quien la tenga instala la beta.2 a mano una vez (o con
+   `akari actualizar`, que usa el instalador de la release y no necesita firma).
+
+Siguiente paso concreto: hacer 1–3 y probar en un Windows real que la beta.2 instalada ve la beta.3
+(aviso → Actualizar → la app se cierra, se instala en modo pasivo y se abre sola).
