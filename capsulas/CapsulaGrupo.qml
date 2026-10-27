@@ -132,6 +132,14 @@ Capsula {
     cuerpo: Component {
         ColumnLayout {
             spacing: 8
+            TarjetaActualizacion {
+                visible: hay && grupo.nombre === "ia" && !grupo.enRecorrido
+                Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
+                Layout.topMargin: 4
+                Layout.preferredHeight: visible ? implicitHeight : 0
+            }
             TarjetaRecorrido {
                 visible: grupo.enRecorrido
                 dueno: grupo
