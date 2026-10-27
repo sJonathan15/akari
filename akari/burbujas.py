@@ -5,17 +5,23 @@ declara su `nombre`, `lado`, `hueco`, `anchoCerrado`, `anchoAbierto`, `altoMaxim
 `pideTeclado`. Así una cápsula nueva en Linux aparece sola como burbuja en Windows (y en la
 app Electron) en cuanto el panel web sabe dibujarla (su nombre aparece en web/*.js).
 Una cápsula puede quedarse fuera de las apps con la línea `// akari: sin-burbuja`.
+Las burbujas que solo existen en el panel web (sin cápsula QML) van en SOLO_WEB, y las que
+el usuario ocultó en ~/.config/akari/capsulas.json ({"ocultas": [...]}) no se dan.
 """
 import re
 
-from .comun import RAIZ
+from .comun import CONFIG, RAIZ, leer_json
 
 CARPETA = RAIZ / "capsulas"
 WEB = RAIZ / "web"
 # los valores por defecto de capsulas/Capsula.qml
 FABRICA = {"lado": "derecha", "hueco": 8, "anchoCerrado": 250, "anchoAbierto": 380, "altoMaximo": 640, "teclado": False}
-ICONOS = {"ia": "bolt", "dispositivos": "devices", "habilidades": "auto_awesome"}
-TITULOS = {"ia": ("IA", "AI"), "dispositivos": ("Dispositivos", "Devices"), "habilidades": ("Habilidades", "Skills")}
+# documentos: más a la izquierda que la de dispositivos abierta (8 + 384 + margen)
+SOLO_WEB = [{"nombre": "documentos", "lado": "izquierda", "hueco": 404, "anchoCerrado": 190, "anchoAbierto": 380,
+             "altoMaximo": 700, "teclado": False}]
+ICONOS = {"ia": "bolt", "dispositivos": "devices", "habilidades": "auto_awesome", "documentos": "swap_horiz"}
+TITULOS = {"ia": ("IA", "AI"), "dispositivos": ("Dispositivos", "Devices"), "habilidades": ("Habilidades", "Skills"),
+           "documentos": ("Documentos", "Documents")}
 
 _cache = None
 
@@ -55,7 +61,11 @@ def lista(idioma="es"):
             # solo las que el panel web sabe dibujar (?vista=burbuja&c=<nombre>)
             if b and re.search(rf"\b{re.escape(b['nombre'])}\b\s*:", web):
                 burbujas.append(b)
+        nombres = {b["nombre"] for b in burbujas}
+        burbujas += [{**FABRICA, **b} for b in SOLO_WEB if b["nombre"] not in nombres
+                     and re.search(rf"\b{re.escape(b['nombre'])}\b\s*:", web)]
         _cache = burbujas
+    ocultas = leer_json(CONFIG / "capsulas.json").get("ocultas") or []
     return [{**b, "icono": ICONOS.get(b["nombre"], "widgets"),
              "titulo": TITULOS.get(b["nombre"], (b["nombre"].capitalize(),) * 2)[0 if idioma == "es" else 1]}
-            for b in _cache]
+            for b in _cache if b["nombre"] not in ocultas]

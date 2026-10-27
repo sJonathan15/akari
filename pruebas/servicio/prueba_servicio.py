@@ -59,7 +59,7 @@ class Servicio(unittest.TestCase):
         _, _, cuerpo = self.pedir("/api/burbujas")
         d = json.loads(cuerpo)
         nombres = {b["nombre"] for b in d["burbujas"]}
-        self.assertTrue({"ia", "dispositivos", "habilidades"} <= nombres)
+        self.assertTrue({"ia", "dispositivos", "habilidades", "documentos"} <= nombres)
         ia = next(b for b in d["burbujas"] if b["nombre"] == "ia")
         self.assertTrue(ia["teclado"])
         self.assertGreater(ia["anchoAbierto"], ia["anchoCerrado"])
