@@ -223,14 +223,27 @@ function dibujarModelos() {
         <p>${esc(r.nota)}</p><small style="color:${VAR(color)}">${icono(ic)} ${t(es, en)}</small></div>${boton}</div>`;
     };
     const catalogo = new Set(M.recomendados.map((r) => r.id));
-    const otros = O.modelos.filter((m) => !catalogo.has(m.nombre) && !catalogo.has(m.nombre.replace(/:latest$/, "")));
+    const otros = O.modelos.filter((m) => !m.embeddings && !catalogo.has(m.nombre) && !catalogo.has(m.nombre.replace(/:latest$/, "")));
+    // el chico busca y el otro conversa: el modelo de embeddings para el cerebro
+    const filaEmbed = (r) => {
+      const bajando = d && d.modelo === r.id && !d.error && d.pct < 100;
+      const boton = r.instalado ? `<button class="listo" disabled>${icono("check")}</button>`
+        : bajando ? `<span class="mod-barra"><b style="width:${d.pct}%"></b><i>${d.pct}%</i></span>`
+        : O.estado === "no_instalado" ? "" : `<button class="boton${r.sugerido ? " principal" : ""}" data-mod="descargar" data-usar="no" data-modelo="${esc(r.id)}">${t("Descargar", "Download")} · ${r.gb} GB</button>`;
+      return `<div class="mod-fila"><span class="circulo">${icono("travel_explore", r.instalado)}</span><div class="texto"><strong>${esc(r.id)}${r.sugerido ? ` <span class="mod-sugerido">${t("recomendado", "recommended")}</span>` : ""}</strong>
+        <p>${esc(r.nota)}</p></div>${boton}</div>`;
+    };
+    const pa = M.para_archivos;
+    const buscarEn = (M.embeddings || []).length ? `<h3 style="margin-top:14px">${t("Para buscar en tu cerebro", "To search your brain")}</h3>
+      ${pa ? `<p class="tenue chico">${icono("travel_explore")} ${t("Para buscar y abrir archivos: ", "To find and open files: ")}<b>${esc(pa.buscar)}</b> ${t("(buscar)", "(search)")}${pa.conversar ? ` + <b>${esc(pa.conversar)}</b> ${t("(conversar)", "(chat)")}` : ""}</p>` : ""}
+      <div class="mod-lista">${M.embeddings.map(filaEmbed).join("")}</div>` : "";
     cuerpo = `<p class="tenue chico">${t("Tu equipo: ", "Your computer: ")}${eq.ram_gb} GB ${t("de RAM", "RAM")}${gpu}</p>${ollama}
       ${d && d.error ? `<p class="error chico">${esc(d.modelo)}: ${esc(d.error)}</p>` : ""}
       <div class="mod-lista">${M.recomendados.map(fila).join("")}</div>
       ${otros.length ? `<p class="tenue chico">${t("Otros modelos que ya tienes:", "Other models you have:")}</p><div class="mod-chips">${otros.map((m) => {
         const tipo = m.vision ? "vision" : "texto", uso = M.local[tipo] === m.nombre;
         return `<button class="mod-chip${uso ? " ok" : ""}" data-mod="usar" data-modelo="${esc(m.nombre)}" data-tipo="${tipo}">${icono(m.vision ? "visibility" : "chat")}${esc(m.nombre)}</button>`;
-      }).join("")}</div>` : ""}`;
+      }).join("")}</div>` : ""}${buscarEn}`;
   } else {
     const prov = (p) => {
       const activo = M.modo === "api" && M.proveedor === p.id;
@@ -951,7 +964,7 @@ document.addEventListener("click", async (e) => {
     const acc = b.dataset.mod;
     const cuerpo = acc === "usar" ? { accion: "usar", modo: "local", modelo: b.dataset.modelo, tipo: b.dataset.tipo }
       : acc === "usar_api" ? { accion: "usar", modo: "api", proveedor: b.dataset.prov }
-      : { accion: acc, modelo: b.dataset.modelo, proveedor: b.dataset.prov, usar: true };
+      : { accion: acc, modelo: b.dataset.modelo, proveedor: b.dataset.prov, usar: b.dataset.usar !== "no" };
     if (acc === "borrar_clave" && !confirm(t("¿Quitar la clave de este equipo?", "Remove the key from this computer?"))) return;
     b.disabled = true;
     ui.modRespuesta = acc === "probar" || acc === "instalar_ollama" ? t("Un momento…", "One moment…") : "";

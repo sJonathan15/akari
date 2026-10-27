@@ -55,6 +55,41 @@ Pieza {
                 Layout.rightMargin: 10
                 Layout.preferredHeight: implicitHeight
             }
+            // el chico busca y el otro conversa (ver akari/cerebro.py)
+            Tarjeta {
+                readonly property var pa: capsula.m ? capsula.m.para_archivos : null
+                readonly property var embed: capsula.m && capsula.m.embeddings ? capsula.m.embeddings.find(e => e.sugerido) : null
+                visible: !!pa && !!embed
+                Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
+                Layout.preferredHeight: filaBuscar.implicitHeight + 22
+                RowLayout {
+                    id: filaBuscar
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 10
+                    spacing: 8
+                    Icono { text: "travel_explore"; tam: 20; color: Tema.primario }
+                    Etiqueta {
+                        Layout.fillWidth: true
+                        text: !parent.parent.pa ? "" : U.t("Para buscar y abrir archivos: ", "To find and open files: ")
+                            + parent.parent.pa.buscar + U.t(" (buscar)", " (search)")
+                            + (parent.parent.pa.conversar ? " + " + parent.parent.pa.conversar + U.t(" (conversar)", " (chat)") : "")
+                        wrapMode: Text.WordWrap
+                        elide: Text.ElideNone
+                        tam: Tema.textoChico
+                    }
+                    Boton {
+                        visible: !!parent.parent.embed && !parent.parent.embed.instalado && capsula.m.ollama.estado === "activo"
+                        texto: U.t("Descargar", "Download")
+                        onPulsado: Datos.enviar("/api/modelos", { accion: "descargar", modelo: parent.parent.embed.id, usar: false })
+                    }
+                    Icono { visible: !!parent.parent.embed && parent.parent.embed.instalado; text: "check"; tam: 20; color: Tema.primario }
+                }
+            }
             Item { Layout.preferredHeight: 6 }
         }
     }

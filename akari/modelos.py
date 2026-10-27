@@ -442,7 +442,7 @@ class MonitorModelos:
             self.descarga = {"modelo": modelo, "pct": 100}
             notificar(t("Modelo descargado", "Model downloaded"), modelo)
             self.leer_ollama()
-            if usar:
+            if usar and not es_embebedor(modelo):         # uno de embeddings nunca pasa a ser el de conversar
                 es_vision = any(m["id"] == modelo and m["vision"] for m in CATALOGO)
                 self._usar({"modo": "local", "modelo": modelo, "tipo": "vision" if es_vision else "texto"})
         except (OSError, ValueError) as e:

@@ -5,7 +5,10 @@ cambia (mtime y sha256 antes y después); lo escrito a mano fuera de las marcas 
 se ponen y se quitan dejando settings.json y AGENTS.md como estaban; las sesiones van a la bitácora.
 """
 import hashlib
+import http.server
 import json
+import re
+import threading
 import os
 import subprocess
 import sys
@@ -18,10 +21,41 @@ RAIZ = Path(__file__).resolve().parents[2]
 CONTENIDO = "texto del capitulo tres que la boveda no copia"
 
 
+class OllamaFalso(http.server.BaseHTTPRequestHandler):
+    """Lo mínimo de Ollama para la búsqueda por significado: un modelo de embeddings que convierte cada
+    palabra (sin el prefijo de la tarea) en una dimensión. Parecido = comparte palabras."""
+    def log_message(self, *a):
+        pass
+
+    def _json(self, datos):
+        cuerpo = json.dumps(datos).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.end_headers()
+        self.wfile.write(cuerpo)
+
+    def do_GET(self):
+        self._json({"models": [{"name": "embeddinggemma:300m", "size": 600 * 2**20, "digest": "x"}]})
+
+    def do_POST(self):
+        datos = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path == "/api/show":
+            return self._json({"capabilities": ["embedding"]})
+        vectores = []
+        for texto in datos["input"]:
+            texto = texto.split(": ", 2)[-1].lower()            # sin «task: … | query: »
+            v = [0.0] * 300
+            for palabra in re.findall(r"\w{3,}", texto):
+                v[int(hashlib.md5(palabra.encode()).hexdigest(), 16) % 256] += 1
+            vectores.append(v)
+        self._json({"embeddings": vectores})
+
+
 def armar(h):
     archivos = {
         "Documentos/Universidad/2026/tesis/informe de la tesis.docx": "x",
-        "Documentos/Universidad/2026/tesis/capitulo-3.md": CONTENIDO,
+        "Documentos/Universidad/2026/tesis/capitulo-3.md": CONTENIDO + "\nLa fotosíntesis de las algas marinas.",
         "Descargas/CV-2026.pdf": "x",
         "Trabajo/Informes/ventas.xlsx": "x",
         "Proyectos/web/package.json": '{"name": "web"}',
@@ -65,12 +99,19 @@ class Cerebro(unittest.TestCase):
                    "LANG": "es_ES.UTF-8", "OLLAMA_HOST": "http://127.0.0.1:9", "CLAUDE_CONFIG_DIR": os.path.join(h, ".claude"),
                    "CODEX_HOME": os.path.join(h, ".codex")}
         cls.env.pop("CLAUDECODE", None)
+        cls.ollama = http.server.ThreadingHTTPServer(("127.0.0.1", 0), OllamaFalso)
+        threading.Thread(target=cls.ollama.serve_forever, daemon=True).start()
+        cls.env["OLLAMA_HOST"] = f"http://127.0.0.1:{cls.ollama.server_address[1]}"
         cls.boveda = os.path.join(h, "Cerebro")
         fuera = {cls.boveda, os.path.join(h, ".config"), os.path.join(h, ".local"), os.path.join(h, ".cache"),
                  os.path.join(h, "AppData")}
         cls.antes = huellas(h, fuera)
         cls.py("from akari import cerebro as C; print(C.configurar([C.HOME])); C.revisar()")
         cls.despues = huellas(h, fuera)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.ollama.shutdown()
 
     @classmethod
     def py(cls, codigo):
@@ -196,6 +237,17 @@ class Cerebro(unittest.TestCase):
         self.assertIn("CV-2026.pdf", salida)
         salida = self.py("from akari import cerebro as C; print(C.abrir_archivo('/etc/hostname')[1])")
         self.assertTrue(salida.strip())          # fuera de las carpetas del cerebro: no se abre
+
+    def test_busqueda_por_significado(self):
+        # el texto de los documentos solo se lee en las carpetas que el usuario activa
+        tesis = os.path.join(self.home, "Documentos", "Universidad", "2026", "tesis")
+        self.py("from akari import cerebro as C; C.SEMANTICA.actualizar(tope=5000)")
+        self.assertNotIn("capitulo-3.md", self.py("from akari import cerebro as C; print([r['ruta'] for r in C.SEMANTICA.buscar('fotosíntesis algas')])"))
+        self.py(f"from akari import cerebro as C; C.configurar([C.HOME], texto_en=[{tesis!r}]); C.SEMANTICA.actualizar(tope=5000)")
+        hallados = self.py("from akari import cerebro as C; print([r['ruta'] for r in C.SEMANTICA.buscar('fotosíntesis algas')])")
+        self.assertIn("capitulo-3.md", hallados)
+        self.assertIn("embeddinggemma", self.akari("estado"))
+        self.assertIn("~", self.akari("buscar", "algas", "marinas"))          # «~» = encontrado por significado
 
     def test_boveda_en_subcarpeta_si_ya_hay_cosas(self):
         otra = Path(self.home) / "MiBoveda"

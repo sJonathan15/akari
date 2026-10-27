@@ -16,7 +16,7 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
 | 3 | `akari cerebro buscar\|donde\|sesiones\|estado` (y más) | ✅ hecho |
 | 4 | Memoria de sesiones (Claude Code, Codex, asistente) | ✅ hecho (probado sin modelo) |
 | 5 | Pieza «Cerebro» en el grupo Archivos (estado + buscador + abrir) | ✅ hecho (web probada con Playwright; QML escrita, sin Quickshell para probarla aquí) |
-| 6 | Búsqueda por significado (embeddings de Ollama) | 🟡 a medias: código escrito, sin probar con Ollama |
+| 6 | Búsqueda por significado (embeddings de Ollama) + tarjeta «Modelos de IA» | ✅ hecho (probado con un Ollama falso en las pruebas; falta probar con el real) |
 | 7 | Ganchos opt-in (Claude Code SessionStart/SessionEnd, AGENTS.md de Codex) | ✅ hecho (probado a mano) |
 | 8 | Recorrido de bienvenida (fase final) | ⬜ falta |
 | — | Pruebas automáticas (`pruebas/servicio/prueba_cerebro.py`, 11 pruebas) | ✅ hecho |
@@ -39,6 +39,9 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
   274 MB; nombres verificados en ollama.com/library), `embeber()`, `embebedores_instalados()`, y en el
   estado `embeddings` + `para_archivos` {buscar, conversar} para la tarjeta «Modelos de IA».
 - `akari/__main__.py`: `akari cerebro …`.
+- Tarjeta «Modelos de IA» (`web/app.js` `dibujarModelos`, `capsulas/PiezaModelos.qml`): «Para buscar en tu
+  cerebro» con los modelos de embeddings (Descargar con `usar: false`: nunca pasan a ser el de conversar) y la
+  línea «Para buscar y abrir archivos: X (buscar) + Y (conversar)». Los de embeddings no salen entre «otros».
 - `akari/servidor.py`: `MonitorCerebro` en el bucle (cada 20 s: revisión al arrancar y cada noche, memoria
   cada 2 min, embeddings), `"cerebro"` en `/api/estado`, `POST /api/cerebro {accion, …}` (configurar, revisar,
   buscar, pregunta, abrir, en_que_quedamos, pendiente, hecho, nota, obsidian, obsidian_instalar, conectar,
@@ -98,8 +101,7 @@ python3 bin/akari.py cerebro conectar && python3 bin/akari.py cerebro desconecta
 ## Qué sigue (siguiente paso concreto)
 
 1. Probar `capsulas/PiezaCerebro.qml` en Quickshell de verdad (`AKARI_ABIERTA=1 qs -p capsulas`).
-2. Tarjeta «Modelos de IA»: fila de embeddings (descargar sin `usar`) y la línea «Para buscar y abrir
-   archivos: X (buscar) + Y (conversar)» con `modelos.para_archivos`.
-3. Probar la búsqueda por significado con Ollama + `embeddinggemma:300m`.
-4. Recorrido de bienvenida (`akari/recorrido.py`, `GET/POST /api/recorrido`, tarjeta en cápsulas/burbujas,
+2. Probar la búsqueda por significado con un Ollama real + `embeddinggemma:300m` (aquí no se pudo bajar Ollama;
+   la prueba usa `OllamaFalso` en `prueba_cerebro.py`, que imita `/api/tags`, `/api/show` y `/api/embed`).
+3. Recorrido de bienvenida (`akari/recorrido.py`, `GET/POST /api/recorrido`, tarjeta en cápsulas/burbujas,
    `akari recorrido`, «Primeros pasos»).
