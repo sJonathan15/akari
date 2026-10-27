@@ -557,6 +557,14 @@ Capsula {
                 }
             }
 
+            // modelos de IA para el asistente (API o locales)
+            TarjetaModelos {
+                Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
+                Layout.preferredHeight: implicitHeight
+            }
+
             // última respuesta
             Tarjeta {
                 Layout.fillWidth: true

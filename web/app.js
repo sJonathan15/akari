@@ -175,6 +175,79 @@ function dibujarIA() {
     : `<p class="tenue chico">${t("Ninguna todavía.", "None yet.")}</p>`);
 }
 
+// ------------------------------------------------------------------ modelos de IA
+// Lo que usan las funciones que piensan (asistente, mirar la pantalla…): una clave de API o
+// modelos locales con Ollama. Mientras se escribe una clave no se redibuja (perdería el texto).
+const CABE = { gpu: ["bolt", "Rápido aquí", "Fast here", "--exito"], cpu: ["hourglass_top", "Anda, más lento", "Works, slower", "--terciario"], no: ["block", "No alcanza", "Too big", "--error"] };
+let modelosDibujado = "";
+function dibujarModelos() {
+  const caja = $("#modelos-ia");
+  const M = E.modelos;
+  if (!caja || !M) return;
+  if (caja.contains(document.activeElement) && document.activeElement.matches("input, select")) return;
+  if (!ui.modPestana) ui.modPestana = M.modo === "api" || (M.ollama.estado === "no_instalado" && M.proveedores.some((p) => p.clave)) ? "api" : "local";
+  const usando = M.listo
+    ? `<span class="mod-chip ok">${icono("check_circle", true)}${esc(M.modo === "local" ? (M.local.texto || M.local.vision) : M.modelo)}${M.modo === "local" ? t(" · local", " · local") : " · " + esc((M.proveedores.find((p) => p.id === M.proveedor) || {}).nombre || "")}</span>`
+    : `<span class="mod-chip alerta">${icono("info")}${esc(M.motivo)}</span>`;
+  let cuerpo;
+  if (ui.modPestana === "local") {
+    const eq = M.equipo, gpu = eq.gpu && eq.gpu.nombre ? ` · ${esc(eq.gpu.nombre)} (${eq.gpu.vram_gb} GB)` : t(" · sin tarjeta de video dedicada", " · no dedicated GPU");
+    const O = M.ollama, d = O.descarga;
+    const ollama = O.estado === "activo" ? ""
+      : O.estado === "apagado" ? `<div class="mod-aviso">${t("Ollama está instalado pero apagado.", "Ollama is installed but not running.")} <button class="boton principal" data-mod="arrancar_ollama">${t("Encender", "Start")}</button></div>`
+      : `<div class="mod-aviso">${t("Para usar modelos en tu equipo hace falta Ollama (gratis).", "Local models need Ollama (free).")} <button class="boton principal" data-mod="instalar_ollama">${t("Instalar Ollama", "Install Ollama")}</button></div>`;
+    const fila = (r) => {
+      const [ic, es, en, color] = CABE[r.cabe];
+      const bajando = d && d.modelo === r.id && !d.error && d.pct < 100;
+      const tipo = r.vision ? "vision" : "texto";
+      const boton = r.en_uso ? `<button class="listo" disabled title="${t("En uso", "In use")}">${icono("check")}</button>`
+        : bajando ? `<span class="mod-barra"><b style="width:${d.pct}%"></b><i>${d.pct}%</i></span>`
+        : r.instalado ? `<button class="boton" data-mod="usar" data-modelo="${esc(r.id)}" data-tipo="${tipo}">${t("Usar", "Use")}</button>`
+        : r.cabe === "no" || O.estado === "no_instalado" ? ""
+        : `<button class="boton${r.sugerido ? " principal" : ""}" data-mod="descargar" data-modelo="${esc(r.id)}">${t("Descargar", "Download")} · ${r.gb} GB</button>`;
+      return `<div class="mod-fila${r.cabe === "no" ? " apagada" : ""}">
+        <span class="circulo">${icono(r.vision ? "visibility" : "chat", r.en_uso)}</span>
+        <div class="texto"><strong>${esc(r.id)}${r.sugerido ? ` <span class="mod-sugerido">${t("recomendado", "recommended")}</span>` : ""}</strong>
+        <p>${esc(r.nota)}</p><small style="color:${VAR(color)}">${icono(ic)} ${t(es, en)}</small></div>${boton}</div>`;
+    };
+    const catalogo = new Set(M.recomendados.map((r) => r.id));
+    const otros = O.modelos.filter((m) => !catalogo.has(m.nombre) && !catalogo.has(m.nombre.replace(/:latest$/, "")));
+    cuerpo = `<p class="tenue chico">${t("Tu equipo: ", "Your computer: ")}${eq.ram_gb} GB ${t("de RAM", "RAM")}${gpu}</p>${ollama}
+      ${d && d.error ? `<p class="error chico">${esc(d.modelo)}: ${esc(d.error)}</p>` : ""}
+      <div class="mod-lista">${M.recomendados.map(fila).join("")}</div>
+      ${otros.length ? `<p class="tenue chico">${t("Otros modelos que ya tienes:", "Other models you have:")}</p><div class="mod-chips">${otros.map((m) => {
+        const tipo = m.vision ? "vision" : "texto", uso = M.local[tipo] === m.nombre;
+        return `<button class="mod-chip${uso ? " ok" : ""}" data-mod="usar" data-modelo="${esc(m.nombre)}" data-tipo="${tipo}">${icono(m.vision ? "visibility" : "chat")}${esc(m.nombre)}</button>`;
+      }).join("")}</div>` : ""}`;
+  } else {
+    const prov = (p) => {
+      const activo = M.modo === "api" && M.proveedor === p.id;
+      if (!p.clave) return `<form class="mod-fila mod-clave" data-prov-clave="${p.id}"><div class="texto"><strong>${esc(p.nombre)}</strong>
+        <a class="chico" href="${esc(p.web)}" target="_blank" rel="noreferrer">${t("Conseguir una clave", "Get a key")} ${icono("open_in_new")}</a></div>
+        <input type="password" name="clave" autocomplete="off" spellcheck="false" placeholder="${t("Pega tu clave", "Paste your key")}">
+        <button class="boton principal">${t("Guardar", "Save")}</button></form>`;
+      const opciones = (sel) => p.modelos.map((m) => `<option ${m === sel ? "selected" : ""}>${esc(m)}</option>`).join("");
+      return `<div class="mod-fila"><span class="circulo">${icono("key", activo)}</span><div class="texto"><strong>${esc(p.nombre)}</strong>
+        <small class="mono">••••${esc(p.final)}</small>${p.error ? `<small class="error">${esc(p.error)}</small>` : ""}
+        ${activo && p.modelos.length ? `<label class="chico tenue">${t("Modelo", "Model")} <select data-mod-sel="texto">${opciones(M.modelo)}</select></label>
+          <label class="chico tenue">${t("Para imágenes", "For images")} <select data-mod-sel="vision"><option value="">${t("el mismo", "same")}</option>${opciones(M.modelo_vision)}</select></label>` : ""}</div>
+        ${activo ? `<button class="listo" disabled>${icono("check")}</button>` : `<button class="boton" data-mod="usar_api" data-prov="${p.id}">${t("Usar", "Use")}</button>`}
+        <button class="redondo" data-mod="borrar_clave" data-prov="${p.id}" title="${t("Quitar la clave", "Remove key")}">${icono("delete")}</button></div>`;
+    };
+    cuerpo = `<p class="tenue chico">${t("La clave se guarda solo en este equipo y se usa para hablar directo con el proveedor. Cada uso se cobra en tu cuenta de ese proveedor.", "The key stays on this computer and is only sent to that provider. Usage is billed to your account there.")}</p>
+      <div class="mod-lista">${M.proveedores.map(prov).join("")}</div>`;
+  }
+  const html = `<h3>${t("Modelos de IA para el asistente", "AI models for the assistant")}</h3>
+    <div class="mod-cabeza">${usando}<span class="b-relleno"></span>${M.listo ? `<button class="boton" data-mod="probar">${t("Probar", "Test")}</button>` : ""}</div>
+    ${ui.modRespuesta ? `<p class="chico mod-respuesta">${esc(ui.modRespuesta)}</p>` : ""}
+    <div class="sub-pestanas"><button data-mod-p="local" class="${ui.modPestana === "local" ? "activa" : ""}">${icono("computer")} ${t("En mi equipo (gratis)", "On my computer (free)")}</button>
+      <button data-mod-p="api" class="${ui.modPestana === "api" ? "activa" : ""}">${icono("key")} ${t("Con clave de API", "With an API key")}</button></div>
+    ${cuerpo}`;
+  if (html === modelosDibujado) return;
+  modelosDibujado = html;
+  caja.innerHTML = html;
+}
+
 // ------------------------------------------------------------------ dispositivos
 function dibujarDisp() {
   const D = E.dispositivos || {};
@@ -313,7 +386,7 @@ function dibujar() {
   aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
   if (burbuja) dibujarCabecera();
-  if (ui.pagina === "ia") dibujarIA();
+  if (ui.pagina === "ia") { dibujarIA(); dibujarModelos(); }
   if (ui.pagina === "disp") dibujarDisp();
   if (ui.pagina === "hab") dibujarHab();
 }
@@ -369,8 +442,43 @@ document.addEventListener("click", async (e) => {
     return enviar("/api/ia/activador", { [b.dataset.hora]: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` });
   }
   if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
+  if (b.dataset.modP) { ui.modPestana = b.dataset.modP; ui.modRespuesta = ""; return dibujar(); }
+  if (b.dataset.mod) {
+    const acc = b.dataset.mod;
+    const cuerpo = acc === "usar" ? { accion: "usar", modo: "local", modelo: b.dataset.modelo, tipo: b.dataset.tipo }
+      : acc === "usar_api" ? { accion: "usar", modo: "api", proveedor: b.dataset.prov }
+      : { accion: acc, modelo: b.dataset.modelo, proveedor: b.dataset.prov, usar: true };
+    if (acc === "borrar_clave" && !confirm(t("¿Quitar la clave de este equipo?", "Remove the key from this computer?"))) return;
+    b.disabled = true;
+    ui.modRespuesta = acc === "probar" || acc === "instalar_ollama" ? t("Un momento…", "One moment…") : "";
+    if (ui.modRespuesta) { modelosDibujado = ""; dibujar(); }
+    const r = await enviar("/api/modelos", cuerpo);
+    ui.modRespuesta = r.mensaje || (r.ok ? "" : t("No se pudo.", "It didn't work."));
+    modelosDibujado = "";
+    return dibujar();
+  }
 });
-document.addEventListener("submit", (e) => {
+document.addEventListener("change", (e) => {
+  const sel = e.target.dataset && e.target.dataset.modSel;
+  if (!sel) return;
+  enviar("/api/modelos", { accion: "usar", modo: "api", modelo: e.target.value || null, tipo: sel });
+  e.target.blur();
+});
+document.addEventListener("submit", async (e) => {
+  const prov = e.target.dataset && e.target.dataset.provClave;
+  if (prov) {
+    e.preventDefault();
+    const campo = e.target.elements.clave;
+    if (!campo.value.trim()) return;
+    ui.modRespuesta = t("Comprobando la clave…", "Checking the key…");
+    modelosDibujado = "";
+    campo.blur();
+    dibujar();
+    const r = await enviar("/api/modelos", { accion: "clave", proveedor: prov, clave: campo.value.trim() });
+    ui.modRespuesta = r.mensaje || "";
+    modelosDibujado = "";
+    return dibujar();
+  }
   if (e.target.id !== "form-activar") return;
   e.preventDefault();
   const campo = $("#mensaje");

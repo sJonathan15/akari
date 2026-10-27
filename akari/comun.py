@@ -147,3 +147,17 @@ def correr(orden, timeout=30, **kw):
         return r.returncode == 0, ((r.stdout or "") + (r.stderr or "")).strip()
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)
+
+
+def abrir(destino):
+    """Abre un enlace, archivo o carpeta con la app predeterminada del sistema."""
+    try:
+        if WINDOWS:
+            os.startfile(str(destino))
+        else:
+            orden = ["xdg-open"] if tiene("xdg-open") else ["gio", "open"]
+            subprocess.Popen(orden + [str(destino)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        return True
+    except OSError:
+        return False

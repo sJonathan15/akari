@@ -6,12 +6,13 @@ import Quickshell
 Singleton {
     id: datos
 
-    readonly property string base: "http://127.0.0.1:47830"
+    readonly property string base: "http://127.0.0.1:" + (Quickshell.env("AKARI_PUERTO") || "47830")
     property var estado: null
     property bool enLinea: false
     readonly property var ia: estado ? estado.ia : null
     readonly property var disp: estado ? estado.dispositivos : null
     readonly property var hab: estado ? estado.habilidades : null
+    readonly property var modelos: estado ? estado.modelos : null
 
     function actualizar() {
         const x = new XMLHttpRequest();

@@ -292,3 +292,38 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .b-vertical .b-cuerpo { top: 10px; left: var(--b-alto, 38px); height: calc(100% - 20px); transform: translateX(-12px); }
 .b-vertical.b-derecha .b-cuerpo { left: auto; right: var(--b-alto, 38px); transform: translateX(12px); }
 .b-vertical .forma.abierta .b-cuerpo { transform: none; }
+
+/* modelos de IA */
+.modelos h3 { margin-bottom: 8px; }
+.mod-cabeza { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.mod-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 12px; font-size: 11px;
+  background: var(--contenedor-alto); color: var(--texto); }
+.mod-chip .icono { font-size: 15px; }
+.mod-chip.ok { color: var(--exito); background: color-mix(in srgb, var(--exito) 14%, transparent); }
+.mod-chip.alerta { color: var(--terciario); background: color-mix(in srgb, var(--terciario) 14%, transparent); }
+.mod-respuesta { background: var(--contenedor-alto); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; }
+.modelos .sub-pestanas { margin-bottom: 10px; }
+.modelos .sub-pestanas .icono { font-size: 16px; vertical-align: -3px; }
+.mod-lista { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.mod-fila { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--contenedor-alto); }
+.mod-fila.apagada { opacity: 0.55; }
+.mod-fila .circulo { width: 32px; height: 32px; flex: none; border-radius: 16px; display: grid; place-items: center; background: var(--contenedor-max); }
+.mod-fila .texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mod-fila strong { font-weight: 500; font-size: 13px; }
+.mod-fila p { margin: 0; font-size: 11px; color: var(--texto-var); line-height: 1.35; }
+.mod-fila small { font-size: 10px; display: flex; align-items: center; gap: 3px; }
+.mod-fila small .icono { font-size: 13px; }
+.mod-fila select { max-width: 190px; background: var(--contenedor-max); color: var(--texto); border: 0; border-radius: 8px; padding: 3px 6px; font: inherit; }
+.mod-fila a { color: var(--primario); text-decoration: none; display: inline-flex; align-items: center; gap: 2px; }
+.mod-fila a .icono { font-size: 13px; }
+.mod-clave input { flex: 1; min-width: 0; background: var(--contenedor-max); color: var(--texto); border: 1px solid var(--contorno-var);
+  border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 12px; }
+.mod-sugerido { font-size: 10px; font-weight: 500; color: var(--sobre-primario); background: var(--primario); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+.mod-barra { position: relative; width: 110px; height: 22px; border-radius: 11px; background: var(--contenedor-max); overflow: hidden; flex: none; }
+.mod-barra b { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--primario) 45%, transparent); transition: width 0.4s; }
+.mod-barra i { position: relative; display: block; text-align: center; font-style: normal; font-size: 11px; line-height: 22px; }
+.mod-aviso { display: flex; align-items: center; gap: 10px; justify-content: space-between; background: var(--contenedor-alto);
+  border-radius: 12px; padding: 8px 10px; font-size: 12px; margin-top: 8px; }
+.mod-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mod-chips .mod-chip { border: 0; cursor: pointer; font: inherit; font-size: 11px; }
+.error { color: var(--error); }

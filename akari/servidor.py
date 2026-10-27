@@ -7,6 +7,7 @@ POST /api/ia/activador    {"programado", "hora", "mantener", "hasta"}
 POST /api/dispositivos    {"id", "accion", "valor"?}
 POST /api/habilidades     {"id", "accion", "destino"?}
 POST /api/ajustes         {"idioma"?, "avisos"?}
+POST /api/modelos         {"accion", ...}           (API o modelos locales, ver modelos.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -21,6 +22,7 @@ from .comun import CONFIG, IDIOMA, RAIZ, WINDOWS, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
 from .ia import MonitorIA
+from .modelos import MonitorModelos
 from .tema import Tema
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
@@ -37,6 +39,7 @@ class Servicio:
         self.ia = MonitorIA(self.cambio)
         self.dispositivos = MonitorDispositivos(self.cambio)
         self.habilidades = MonitorHabilidades(self.cambio)
+        self.modelos = MonitorModelos(self.cambio)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -55,7 +58,8 @@ class Servicio:
                 "sistema": "windows" if WINDOWS else "linux"}
         if DEMO:
             return {**base, **demo.estado(), "demo": True}
-        return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado}
+        return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
+                "modelos": self.modelos.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -67,8 +71,9 @@ class Servicio:
 
     def arrancar(self):
         for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5),
-                                (self.revisar_tema, 5)):
+                                (self.revisar_tema, 5), (self.modelos.paso, 10)):
             threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
+        threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
 
 
 def crear_manejador(servicio):
@@ -126,6 +131,9 @@ def crear_manejador(servicio):
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/habilidades":
                 ok, mensaje = servicio.habilidades.accion(str(datos.get("id")), str(datos.get("accion")), datos.get("destino"))
+                return self._json({"ok": ok, "mensaje": mensaje})
+            if ruta == "/api/modelos":
+                ok, mensaje = servicio.modelos.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/ajustes":
                 a = ajustes()
