@@ -171,7 +171,11 @@ def permitido(ruta):
         return False
     if PROHIBIDO.search(str(ruta)):
         return False
-    return ruta == HOME or HOME in ruta.parents
+    try:
+        casa = HOME.resolve()  # en Windows la temporal sale con nombre corto (RUNNER~1)
+    except (OSError, RuntimeError):
+        casa = HOME
+    return ruta == casa or casa in ruta.parents
 
 
 def ruta_de(texto, base=None):
