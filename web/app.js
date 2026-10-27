@@ -337,9 +337,14 @@ function dibujarDoc() {
   if (!caja || !D) return;
   ui.docModo = ui.docModo || "a-md";
   ui.docFormato = ui.docFormato || "docx";
+  const pestanas = `<div class="sub-pestanas"><button data-doc-modo="a-md" class="${ui.docModo === "a-md" ? "activa" : ""}">${t("A Markdown", "To Markdown")}</button>
+      <button data-doc-modo="desde-md" class="${ui.docModo === "desde-md" ? "activa" : ""}">${t("Desde Markdown", "From Markdown")}</button>
+      <button data-doc-modo="audio" class="${ui.docModo === "audio" ? "activa" : ""}">${icono("graphic_eq")} ${t("Audio", "Audio")}</button></div>`;
   let html;
-  if (!D.listo) {
-    html = `<div class="tarjeta doc-instalar"><span class="circulo">${icono("swap_horiz")}</span>
+  if (ui.docModo === "audio") {
+    html = pestanas + htmlAudio();
+  } else if (!D.listo) {
+    html = pestanas + `<div class="tarjeta doc-instalar"><span class="circulo">${icono("swap_horiz")}</span>
       <div class="texto"><strong>${t("Conversor de documentos", "Document converter")}</strong>
       <p>${t("PDF, Word y Excel a Markdown (para darle a una IA o a Obsidian) y Markdown o lo que copiaste a Word o PDF. Se instala una vez (≈150 MB, sin contraseña).", "PDF, Word and Excel to Markdown (for an AI or Obsidian) and Markdown or copied text to Word or PDF. Installs once (≈150 MB, no password).")}</p>
       ${D.error_instalacion ? `<small class="error">${esc(D.error_instalacion)}</small>` : ""}</div>
@@ -356,9 +361,7 @@ function dibujarDoc() {
         <div class="texto"><strong>${esc(x.nombre)}</strong><small>${x.estado === "cola" ? t("En espera…", "Waiting…") : x.estado === "convirtiendo" ? t("Convirtiendo a ", "Converting to ") + destino + "…" : esc(x.estado === "listo" ? "→ " + destino + " · " + x.mensaje : x.mensaje)}</small></div>
         ${x.estado === "listo" ? `<button class="redondo" data-doc="abrir" data-id="${x.id}" data-carpeta="1" title="${t("Abrir carpeta", "Open folder")}">${icono("folder_open")}</button>` : ""}</div>`;
     };
-    html = `<div class="sub-pestanas"><button data-doc-modo="a-md" class="${aMd ? "activa" : ""}">${t("A Markdown", "To Markdown")}</button>
-        <button data-doc-modo="desde-md" class="${aMd ? "" : "activa"}">${t("Desde Markdown", "From Markdown")}</button></div>
-      ${aMd ? "" : `<div class="doc-formatos"><span class="tenue chico">${t("Sacar como", "Save as")}</span>
+    html = pestanas + `${aMd ? "" : `<div class="doc-formatos"><span class="tenue chico">${t("Sacar como", "Save as")}</span>
         <button class="mod-chip${ui.docFormato === "docx" ? " ok" : ""}" data-doc-formato="docx">${icono("description")}Word</button>
         <button class="mod-chip${ui.docFormato === "pdf" ? " ok" : ""}" data-doc-formato="pdf">${icono("picture_as_pdf")}PDF</button></div>`}
       ${pdfNo ? `<p class="chico error">${t("Para PDF hace falta LibreOffice (gratis). Word funciona sin él.", "PDF needs LibreOffice (free). Word works without it.")}</p>` : ""}
@@ -378,9 +381,74 @@ function dibujarDoc() {
   caja.innerHTML = html;
 }
 
+// Audio y video → Markdown (akari/audio.py): en el equipo con faster-whisper o con la clave de
+// Groq / OpenAI. Lo soltado en la página de documentos que sea audio o video viene aquí solo.
+const EXT_AUDIO = /\.(mp3|wav|m4a|ogg|oga|opus|flac|aac|wma|amr|mpga|mpeg|mp4|mkv|mov|avi|webm|m4v|3gp|wmv)$/i;
+const reloj = (seg) => { seg = Math.max(0, Math.round(seg)); const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : String(m).padStart(2, "0")) + ":" + String(s).padStart(2, "0"); };
+function htmlAudio() {
+  const A = E.audio;
+  if (!A) return "";
+  const instalar = A.listo_local ? "" : A.instalando
+    ? `<button class="redondo" disabled>${icono("progress_activity").replace('class="icono', 'class="icono girando')}</button>`
+    : `<button class="boton${A.usa ? "" : " principal"}" data-aud="instalar">${t("Instalar", "Install")}</button>`;
+  const local = `<div class="mod-fila"><span class="circulo">${icono("computer", A.usa === "local")}</span><div class="texto">
+      <strong>${t("En tu equipo (gratis, sin internet)", "On your computer (free, offline)")}</strong>
+      <p>${A.gpu ? t(`Whisper large-v3-turbo en tu ${esc(A.gpu)}: rápido y preciso.`, `Whisper large-v3-turbo on your ${esc(A.gpu)}: fast and accurate.`)
+        : t("Whisper small en el procesador: tarda más o menos lo que dura el audio.", "Whisper small on the processor: takes about as long as the audio.")}
+        ${A.listo_local ? "" : t(` Se instala una vez (${A.gpu ? "≈2 GB" : "≈400 MB"} con el modelo, sin contraseña).`, ` Installs once (${A.gpu ? "≈2 GB" : "≈400 MB"} with the model, no password).`)}</p>
+      ${A.error_instalacion ? `<small class="error">${esc(A.error_instalacion)}</small>` : ""}</div>${A.listo_local ? `<button class="listo" disabled>${icono("check")}</button>` : instalar}</div>`;
+  const api = `<div class="mod-fila"><span class="circulo">${icono("key", !!A.api && A.usa === A.api)}</span><div class="texto">
+      <strong>${t("Con tu clave de API", "With your API key")}</strong>
+      <p>${A.api ? t(`Whisper de ${esc(A.api_nombre)}: rápido; cada minuto se cobra en tu cuenta.`, `${esc(A.api_nombre)} Whisper: fast; billed per minute to your account.`)
+        : t("Guarda una clave de Groq u OpenAI en «Modelos de IA».", "Save a Groq or OpenAI key in “AI models”.")}</p></div>
+      ${A.api ? `<button class="listo" disabled>${icono("check")}</button>` : `<button class="boton" data-ir="modelos-api">${t("Agregar clave", "Add key")}</button>`}</div>`;
+  const ambos = A.listo_local && A.api;
+  const modos = ambos ? `<div class="doc-formatos"><span class="tenue chico">${t("Usar", "Use")}</span>
+      ${[["auto", t("Automático", "Automatic")], ["local", t("Mi equipo", "My computer")], ["api", A.api_nombre]].map(([m, n]) =>
+        `<button class="mod-chip${A.modo === m ? " ok" : ""}" data-aud="ajustes" data-modo="${m}">${esc(n)}</button>`).join("")}</div>` : "";
+  if (!A.usa) return `<div class="tarjeta"><h3>${t("Audio y video a texto", "Audio and video to text")}</h3>
+      <p class="tenue chico">${t("Suelta una clase, una reunión o un video y sale un .md con la transcripción junto al original. Elige cómo:", "Drop a lecture, a meeting or a video and get a .md transcript next to the original. Choose how:")}</p>
+      <div class="mod-lista">${local}${api}</div></div>`;
+  const g = A.grabacion;
+  const grabar = !g.disponible ? "" : g.desde
+    ? `<button class="boton principal" data-aud="parar">${icono("stop_circle")} ${t("Parar", "Stop")} · <span class="mono">${reloj(ahora() - g.desde)}</span></button>`
+    : `<button class="boton" data-aud="grabar" title="${t("Graba tu micrófono y lo que suena en el equipo", "Records your microphone and what plays on the computer")}">${icono("radio_button_checked")} ${t("Grabar reunión", "Record meeting")}</button>`;
+  const fila = (x) => {
+    const ocupado = x.estado === "cola" || x.estado === "transcribiendo";
+    const ic = x.estado === "listo" ? "description" : x.estado === "error" ? "error" : "progress_activity";
+    const sub = x.estado === "cola" ? t("En espera…", "Waiting…")
+      : x.estado === "transcribiendo" ? t("Transcribiendo", "Transcribing") + (x.pct != null ? ` · ${x.pct} %` : "…")
+      : x.estado === "listo" ? "→ Markdown · " + x.mensaje : x.mensaje;
+    const res = x.resumen === "haciendo" ? `<button class="redondo" disabled>${icono("progress_activity").replace('class="icono', 'class="icono girando')}</button>`
+      : x.estado === "listo" ? `<button class="redondo${x.resumen === "listo" ? " hecho" : ""}" data-aud="resumir" data-id="${x.id}" title="${x.resumen === "listo" ? t("Resumen hecho (otra vez)", "Summary done (again)") : t("Resumir y sacar notas", "Summarize and take notes")}">${icono("summarize", x.resumen === "listo")}</button>` : "";
+    return `<div class="doc-fila e-${x.estado === "transcribiendo" ? "convirtiendo" : x.estado}" ${x.estado === "listo" ? `data-aud="abrir" data-id="${x.id}" title="${t("Abrir", "Open")}"` : ""}>
+      ${icono(ic).replace('class="icono', `class="icono${ocupado ? " girando" : ""}`)}
+      <div class="texto"><strong>${esc(x.nombre)}</strong><small>${esc(sub)}${x.resumen && x.resumen.startsWith("error") ? ` · <span class="error">${esc(x.resumen.slice(7))}</span>` : ""}</small></div>
+      ${res}${x.estado === "listo" ? `<button class="redondo" data-aud="abrir" data-id="${x.id}" data-carpeta="1" title="${t("Abrir carpeta", "Open folder")}">${icono("folder_open")}</button>` : ""}</div>`;
+  };
+  return `${modos}
+    <div class="doc-soltar" id="doc-soltar">${icono("graphic_eq")}
+      <strong>${t("Suelta aquí un audio o un video", "Drop an audio or video file here")}</strong>
+      <span class="tenue chico">${t("Sale un .md con la transcripción junto al original. ", "A .md transcript appears next to the original. ")}${esc(A.usa === "local" ? "Whisper " + A.modelo_local : "Whisper · " + A.api_nombre)}</span>
+      <div class="doc-botones"><button class="boton principal" data-aud="elegir" ${A.eligiendo ? "disabled" : ""}>${icono("folder_open")} ${t("Elegir archivos", "Choose files")}</button>${grabar}</div></div>
+    <div class="aud-opcion"><span>${t("Resumir y sacar notas al terminar", "Summarize and take notes when done")}<small class="tenue chico">${A.ia_lista ? t("Con el modelo de «Modelos de IA».", "With the model in “AI models”.") : t("Agrega una clave de API o usa un modelo local.", "Add an API key or use a local model.")}</small></span>
+      ${A.ia_lista ? `<button class="interruptor ${A.resumir ? "on" : ""}" data-aud="ajustes" data-resumir="${!A.resumir}" aria-label="on/off"></button>` : `<button class="boton" data-ir="modelos">${t("Elegir modelo", "Choose model")}</button>`}</div>
+    ${ui.docRespuesta ? `<p class="chico mod-respuesta">${esc(ui.docRespuesta)}</p>` : ""}
+    ${!A.listo_local || !A.api ? `<details class="tarjeta aud-mas"><summary class="tenue chico">${t("Otra forma de transcribir", "Another way to transcribe")}</summary><div class="mod-lista">${A.listo_local ? api : local}</div></details>` : ""}
+    ${A.trabajos.length ? `<div class="tarjeta"><div class="doc-cabeza"><h3>${t("Últimos", "Recent")}</h3><span class="b-relleno"></span>
+      <button class="redondo" data-aud="limpiar" title="${t("Vaciar la lista (no borra archivos)", "Clear list (keeps files)")}">${icono("delete_sweep")}</button></div>
+      <div class="doc-lista">${A.trabajos.slice(0, 12).map(fila).join("")}</div></div>` : ""}`;
+}
+
 async function subirDocumentos(archivos) {
-  const D = E && E.documentos;
-  if (!D || !D.listo) return;
+  const D = E && E.documentos, A = E && E.audio;
+  if (!D) return;
+  // los audios y videos van a la transcripción (el servicio los reconoce por la extensión)
+  const audios = archivos.filter((f) => EXT_AUDIO.test(f.name));
+  if (audios.length && !(A && A.usa)) { ui.docModo = "audio"; docDibujado = ""; return dibujar(); }
+  if (audios.length) ui.docModo = "audio";
+  archivos = archivos.filter((f) => EXT_AUDIO.test(f.name) || D.listo);
   const rutas = [];
   ui.docRespuesta = "";
   for (const f of archivos) {
@@ -463,8 +531,11 @@ function htmlCabecera() {
         <span class="mono chico" style="color:${nv === "nada" ? VAR("--contorno") : VAR("--texto-var")}">${textoCorto(d)}${d.cargando ? "⚡" : ""}</span></span>`;
     }).join("") || `<span class="tenue chico b-centro">${t("Sin periféricos todavía", "No devices yet")}</span>`;
   } else if (burbuja === "documentos") {
-    const D = E.documentos;
-    const activos = D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0;
+    const D = E.documentos, A = E.audio;
+    const activos = (D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0)
+      + (A ? A.trabajos.filter((x) => x.estado === "cola" || x.estado === "transcribiendo").length : 0);
+    if (A && A.grabacion.desde) return `${icono("radio_button_checked", true).replace('class="icono', 'class="icono late" style="color:var(--error)"')}
+      <span class="tenue chico">${t("Grabando", "Recording")} · <span class="mono">${reloj(ahora() - A.grabacion.desde)}</span></span>`;
     const ultimo = D && D.trabajos[0];
     return `${icono("swap_horiz", true).replace('class="icono', `class="icono b-estrella${activos ? " girando" : ""}`)}
       <span class="tenue chico">${!D ? "—" : !D.listo ? t("Conversor sin instalar", "Converter not installed") : activos ? t("Convirtiendo ", "Converting ") + activos + "…" : ultimo ? esc(ultimo.nombre) : t("Suelta un documento", "Drop a document")}</span>`;
@@ -508,7 +579,7 @@ function conectar() {
 
 // eventos (delegados: el contenido se redibuja)
 document.addEventListener("click", async (e) => {
-  const b = e.target.closest("button, .doc-fila[data-doc]");
+  const b = e.target.closest("button, .doc-fila[data-doc], .doc-fila[data-aud]");
   if (!b) return;
   if (b.closest("#pestanas")) {
     ui.pagina = b.dataset.p;
@@ -539,6 +610,23 @@ document.addEventListener("click", async (e) => {
     return enviar("/api/ia/activador", { [b.dataset.hora]: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` });
   }
   if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
+  if (b.dataset.ir) {
+    ui.modPestana = b.dataset.ir === "modelos-api" ? "api" : ui.modPestana;
+    if (burbuja && window.akari) return window.akari.alternarPanel();
+    document.querySelector('#pestanas button[data-p="ia"]').click();
+    return setTimeout(() => $("#modelos-ia").scrollIntoView({ behavior: "smooth" }), 50);
+  }
+  if (b.dataset.aud) {
+    const acc = b.dataset.aud;
+    if (acc !== "abrir") b.disabled = true;
+    const cuerpo = { accion: acc, id: b.dataset.id, carpeta: !!b.dataset.carpeta };
+    if (b.dataset.modo) cuerpo.modo = b.dataset.modo;
+    if (b.dataset.resumir) cuerpo.resumir = b.dataset.resumir === "true";
+    const r = await enviar("/api/audio", cuerpo);
+    ui.docRespuesta = r.ok ? "" : r.mensaje || t("No se pudo.", "It didn't work.");
+    docDibujado = "";
+    return dibujar();
+  }
   if (b.dataset.docModo) { ui.docModo = b.dataset.docModo; ui.docRespuesta = ""; return dibujar(); }
   if (b.dataset.docFormato) { ui.docFormato = b.dataset.docFormato; return dibujar(); }
   if (b.dataset.doc) {
@@ -725,3 +813,5 @@ if (burbuja) {
 traducir();
 conectar();
 setInterval(dibujar, 15000);      // cuentas regresivas aunque no cambie nada
+// el reloj de la grabación de una reunión
+setInterval(() => { if (E && E.audio && E.audio.grabacion.desde && ui.pagina === "doc" && ui.docModo === "audio") { docDibujado = ""; dibujarDoc(); } }, 1000);

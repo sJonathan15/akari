@@ -355,3 +355,11 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .doc-fila small { font-size: 10px; color: var(--texto-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-fila.e-error small, .doc-fila.e-error > .icono { color: var(--error); }
 .doc-fila.e-listo > .icono { color: var(--primario); }
+
+/* audio → texto */
+.aud-opcion { display: flex; align-items: center; gap: 12px; justify-content: space-between; background: var(--contenedor); border-radius: 16px; padding: 10px 14px; font-size: 13px; }
+.aud-opcion > span { display: flex; flex-direction: column; gap: 2px; }
+.aud-mas summary { cursor: pointer; }
+.aud-mas .mod-lista { margin-top: 8px; }
+.redondo.hecho { color: var(--primario); }
+.icono.late { animation: latir 1.2s ease-in-out infinite; }

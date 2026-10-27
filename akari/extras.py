@@ -18,14 +18,27 @@ _instalando = {}            # nombre -> True mientras se instala
 _cerrojo = threading.Lock()
 
 
+def sitio(nombre):
+    """La carpeta site-packages del entorno (para encontrar bibliotecas que trae, como CUDA)."""
+    entorno = CARPETA / nombre
+    if WINDOWS:
+        return entorno / "Lib" / "site-packages"
+    return next(iter(sorted((entorno / "lib").glob("python3*/site-packages"))), entorno / "lib")
+
+
 def _python(entorno):
     return entorno / ("Scripts/python.exe" if WINDOWS else "bin/python")
 
 
-def python_de(nombre):
-    """El Python del entorno `nombre` si ya está instalado y completo."""
+def _marca(nombre, parte):
+    return CARPETA / nombre / (f".listo-{parte}" if parte else ".listo")
+
+
+def python_de(nombre, parte=None):
+    """El Python del entorno `nombre` si ya está instalado y completo. Un entorno puede tener varias
+    partes que se instalan por separado (p. ej. «voz»: transcribir y, aparte, el asistente)."""
     py = _python(CARPETA / nombre)
-    return py if py.exists() and (CARPETA / nombre / ".listo").exists() else None
+    return py if py.exists() and _marca(nombre, parte).exists() else None
 
 
 def instalando(nombre):
@@ -53,7 +66,7 @@ def _correr(orden, timeout=1800):
         raise RuntimeError(ultima[:240])
 
 
-def instalar(nombre, paquetes, python="3.12"):
+def instalar(nombre, paquetes, python="3.12", parte=None):
     """Crea (o completa) el entorno `nombre` con `paquetes`. Devuelve (ok, mensaje). Bloquea: usar en un hilo."""
     with _cerrojo:
         if _instalando.get(nombre):
@@ -61,7 +74,7 @@ def instalar(nombre, paquetes, python="3.12"):
         _instalando[nombre] = True
     entorno = CARPETA / nombre
     try:
-        (entorno / ".listo").unlink(missing_ok=True)
+        _marca(nombre, parte).unlink(missing_ok=True)
         uv = _uv()
         if not uv and WINDOWS and shutil.which("winget"):
             _correr(["winget", "install", "-e", "--id", "astral-sh.uv", "--silent",
@@ -73,7 +86,7 @@ def instalar(nombre, paquetes, python="3.12"):
         else:
             _correr([sys.executable, "-m", "venv", str(entorno)], 300)
             _correr([str(_python(entorno)), "-m", "pip", "install", "--upgrade", *paquetes])
-        (entorno / ".listo").write_text(" ".join(paquetes))
+        _marca(nombre, parte).write_text(" ".join(paquetes))
         return True, ""
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as e:
         mensaje = str(e)

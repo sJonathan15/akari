@@ -38,6 +38,9 @@ PROVEEDORES = {
                "web": "https://aistudio.google.com/apikey", "prefiere": ["flash", "gemini"]},
     "openrouter": {"nombre": "OpenRouter", "base": "https://openrouter.ai/api/v1",
                    "web": "https://openrouter.ai/keys", "prefiere": [":free", "mini", "flash"]},
+    # Groq: rápido y barato; también transcribe audio (Whisper), ver audio.py
+    "groq": {"nombre": "Groq", "base": "https://api.groq.com/openai/v1",
+             "web": "https://console.groq.com/keys", "prefiere": ["llama-3.1-8b", "llama-3.3", "qwen"]},
 }
 
 # Modelos locales que recomendamos, de menor a mayor. gb = lo que pesa la descarga (≈ lo que ocupa
@@ -459,6 +462,8 @@ def listar_modelos(proveedor, clave):
     elif proveedor == "openai":
         ids = [i for i in ids if re.match(r"(gpt-|o\d|chatgpt)", i) and not re.search(
             r"audio|realtime|transcribe|tts|image|search|embedding", i)]
+    elif proveedor == "groq":
+        ids = [i for i in ids if not re.search(r"whisper|tts|guard|distil", i)]
     return sorted(set(i for i in ids if i), reverse=True)
 
 

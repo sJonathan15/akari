@@ -10,6 +10,8 @@ POST /api/ajustes         {"idioma"?, "avisos"?}
 POST /api/modelos         {"accion", ...}           (API o modelos locales, ver modelos.py)
 POST /api/documentos      {"accion", ...}           (conversor de documentos ⇄ Markdown)
 POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Akari-Formato
+                          (los audios y videos van a la transcripción)
+POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -26,6 +28,7 @@ from .habilidades import MonitorHabilidades
 from .ia import MonitorIA
 from .modelos import MonitorModelos
 from .documentos import Conversor
+from .audio import Transcriptor, es_audio
 from .tema import Tema
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"
@@ -45,6 +48,7 @@ class Servicio:
         self.habilidades = MonitorHabilidades(self.cambio)
         self.modelos = MonitorModelos(self.cambio)
         self.documentos = Conversor(self.cambio)
+        self.audio = Transcriptor(self.cambio, self.modelos)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -64,7 +68,7 @@ class Servicio:
         if DEMO:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-                "modelos": self.modelos.estado, "documentos": self.documentos.estado}
+                "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -143,7 +147,9 @@ def crear_manejador(servicio):
                 ok, mensaje = servicio.modelos.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/documentos":
-                ok, mensaje = servicio.documentos.accion(datos)
+                return self._json(self._documentos(datos))
+            if ruta == "/api/audio":
+                ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/ajustes":
                 a = ajustes()
@@ -154,6 +160,19 @@ def crear_manejador(servicio):
                 escribir_json(CONFIG / "ajustes.json", a)
                 return self._json({"ok": True, "reiniciar": "idioma" in datos})
             self._json({"ok": False}, 404)
+
+        def _documentos(self, datos):
+            # lo que se suelta en documentos puede traer audios o videos: esos van a la transcripción
+            rutas = datos.get("rutas") if datos.get("accion") == "convertir" and isinstance(datos.get("rutas"), list) else None
+            if rutas and any(es_audio(r) for r in rutas):
+                audios, otros = [r for r in rutas if es_audio(r)], [r for r in rutas if not es_audio(r)]
+                ok, mensaje = servicio.audio.agregar(audios[:50])
+                if otros:
+                    ok2, mensaje2 = servicio.documentos.agregar(otros[:50], datos.get("formato") or "docx")
+                    ok, mensaje = ok and ok2, mensaje or mensaje2
+                return {"ok": ok, "mensaje": mensaje}
+            ok, mensaje = servicio.documentos.accion(datos)
+            return {"ok": ok, "mensaje": mensaje}
 
         def _subir(self):
             # application/octet-stream + cabecera propia: un navegador no lo manda a otro sitio sin
@@ -166,8 +185,11 @@ def crear_manejador(servicio):
             if not 0 < largo <= MAX_SUBIDA:
                 return self._json({"ok": False, "mensaje": "> 200 MB"}, 413)
             contenido = self.rfile.read(largo)
-            ok, mensaje = servicio.documentos.subir(unquote(self.headers["X-Akari-Nombre"]), contenido,
-                                                    self.headers.get("X-Akari-Formato", "docx"))
+            nombre = unquote(self.headers["X-Akari-Nombre"])
+            if es_audio(nombre):
+                ok, mensaje = servicio.audio.subir(nombre, contenido)
+            else:
+                ok, mensaje = servicio.documentos.subir(nombre, contenido, self.headers.get("X-Akari-Formato", "docx"))
             return self._json({"ok": ok, "mensaje": mensaje})
 
         def _eventos(self):
