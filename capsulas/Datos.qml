@@ -13,6 +13,7 @@ Singleton {
     readonly property var disp: estado ? estado.dispositivos : null
     readonly property var hab: estado ? estado.habilidades : null
     readonly property var modelos: estado ? estado.modelos : null
+    readonly property var docs: estado ? estado.documentos : null
 
     function actualizar() {
         const x = new XMLHttpRequest();

@@ -29,6 +29,9 @@ PanelWindow {
     property bool moviendo: false           // se está arrastrando
     property bool pideTeclado: false        // tiene campos de texto: acepta el teclado al hacer clic
     property bool retener: false            // no cerrarse aunque el puntero salga (p. ej. escribiendo)
+    property bool aceptaArchivos: false     // se le pueden soltar archivos (se abre al arrastrar encima)
+    property bool archivoEncima: false
+    signal soltaron(var urls)               // ["file:///…", …]
     property Component cabecera
     property Component cuerpo
     readonly property int altoCuerpo: cargaCuerpo.item ? cargaCuerpo.item.implicitHeight : 0
@@ -128,7 +131,7 @@ PanelWindow {
     Timer {
         id: cierre
         interval: 450
-        onTriggered: if (!ventana.fijada && !ventana.retener && Quickshell.env("AKARI_ABIERTA") !== "1") ventana.abierta = false
+        onTriggered: if (!ventana.fijada && !ventana.retener && !ventana.archivoEncima && Quickshell.env("AKARI_ABIERTA") !== "1") ventana.abierta = false
     }
     onRetenerChanged: if (!retener && !forma.containsHover) cierre.restart()
 
@@ -180,6 +183,23 @@ PanelWindow {
             onHoveredChanged: {
                 if (hovered) { cierre.stop(); ventana.abierta = true; }
                 else cierre.restart();
+            }
+        }
+
+        // Archivos arrastrados desde el gestor de archivos: al pasar por encima se abre (el
+        // HoverHandler no se entera durante un arrastre) y al soltar avisa con sus URLs.
+        DropArea {
+            anchors.fill: parent
+            enabled: ventana.aceptaArchivos && !ventana.moviendo
+            keys: ["text/uri-list"]
+            onEntered: { ventana.archivoEncima = true; cierre.stop(); ventana.abierta = true; }
+            onExited: { ventana.archivoEncima = false; cierre.restart(); }
+            onDropped: drop => {
+                ventana.archivoEncima = false;
+                if (!drop.hasUrls) return;
+                drop.acceptProposedAction();
+                ventana.soltaron(Array.from(drop.urls).map(u => u.toString()));
+                cierre.restart();
             }
         }
 

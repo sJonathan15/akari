@@ -3,8 +3,9 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// akari: tres cápsulas que cuelgan del borde superior, cerca del centro.
-//   dispositivos (izquierda) · IA: Claude Code / Codex (derecha) · habilidades (más a la derecha)
+// akari: cápsulas que cuelgan del borde superior, cerca del centro.
+//   documentos (más a la izquierda) · dispositivos (izquierda) · IA: Claude Code / Codex (derecha)
+//   · habilidades (más a la derecha)
 // Se arrastran desde la cabecera a cualquier lugar; doble clic las devuelve a su sitio.
 // Para no mostrar alguna (p. ej. si ya tienes otro widget igual), ponla en
 // ~/.config/akari/capsulas.json: { "ocultas": ["dispositivos", "ia"] }
@@ -22,6 +23,7 @@ ShellRoot {
         onLoadFailed: raiz.ocultas = []
     }
 
+    LazyLoader { active: !raiz.ocultas.includes("documentos"); CapsulaDocumentos {} }
     LazyLoader { active: !raiz.ocultas.includes("dispositivos"); CapsulaDispositivos {} }
     LazyLoader { active: !raiz.ocultas.includes("ia"); CapsulaIA {} }
     LazyLoader { active: !raiz.ocultas.includes("habilidades"); CapsulaHabilidades {} }
