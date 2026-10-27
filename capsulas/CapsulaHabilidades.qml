@@ -31,6 +31,7 @@ Capsula {
             spacing: 6
             Item { Layout.preferredWidth: 8 }
             Icono {
+                id: iconoCabecera
                 text: "auto_awesome"
                 tam: 19
                 relleno: 1
@@ -38,7 +39,7 @@ Capsula {
                 RotationAnimation on rotation {
                     running: capsula.instalando
                     from: 0; to: 360; duration: 1400; loops: Animation.Infinite
-                    onRunningChanged: if (!running) parent.rotation = 0
+                    onRunningChanged: if (!running) iconoCabecera.rotation = 0   // ojo: «parent» aquí es el Loader de la cabecera
                 }
             }
             Etiqueta {
