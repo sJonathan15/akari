@@ -43,7 +43,7 @@ MAX_SUBIDA = 200 * 2**20
 # La app de Windows (escritorio/) pide revisar como mucho cada 5 s y, si no hay nada abierto
 # (solo las cabeceras de las burbujas), bajar al ritmo de reposo: casi nada de CPU.
 MINIMO = float(os.environ.get("AKARI_INTERVALO_MIN") or 0)
-REPOSO = {"ia": 30, "dispositivos": 120, "habilidades": 120, "tema": 60, "modelos": 120}
+REPOSO = {"ia": 30, "dispositivos": 120, "habilidades": 120, "tema": 60, "modelos": 120, "herramientas": 120}
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript",
          ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json",
