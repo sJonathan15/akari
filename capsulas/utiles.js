@@ -70,3 +70,62 @@ function reloj(seg) {
 function abrirPanel(Quickshell) {
     Quickshell.execDetached([(Quickshell.env("AKARI_RAIZ") || Quickshell.shellDir + "/..") + "/bin/akari", "abrir"]);
 }
+
+// ------------------------------------------------------------------ muñequito del asistente
+// Un farolito con llama (akari = «luz»), 13 × 14 píxeles. Mismo dibujo en web/app.js.
+// Letras: o contorno · b cuerpo · l brillo · e ojos · c mejillas · m boca · f llama · F centro de la llama
+var MUNECO = [
+    "......F......",
+    ".....fFf.....",
+    ".....fff.....",
+    "......o......",
+    "...ooooooo...",
+    "..obbbbbbbo..",
+    ".obllbbbbbbo.",
+    ".oblbbbbbbbo.",
+    ".obbbbbbbbbo.",
+    ".obbbbbbbbbo.",
+    ".obcbbbbbcbo.",
+    "..obbbbbbbo..",
+    "...ooooooo...",
+    "...oo...oo..."
+];
+
+// [[x, y, letra], …] para un estado (pausa, escuchando, oyendo, confirmando, pensando, hablando,
+// error) y un paso de animación (entero que sube solo, ~6 por segundo)
+function pixelesMuneco(estado, paso) {
+    var g = MUNECO.map(function (fila) { return fila.split(""); });
+    function pon(x, y, c) { g[y][x] = c; }
+    var parpadeo = estado !== "pausa" && paso % 26 === 0;
+    if (estado === "pausa" || parpadeo) {               // ojos cerrados
+        pon(3, 9, "e"); pon(4, 9, "e"); pon(8, 9, "e"); pon(9, 9, "e");
+    } else if (estado === "pensando") {                 // mira hacia arriba
+        pon(4, 7, "e"); pon(4, 8, "e"); pon(8, 7, "e"); pon(8, 8, "e");
+    } else if (estado === "oyendo" || estado === "confirmando") {   // ojos grandes
+        pon(4, 8, "e"); pon(5, 8, "e"); pon(4, 9, "e"); pon(5, 9, "e");
+        pon(7, 8, "e"); pon(8, 8, "e"); pon(7, 9, "e"); pon(8, 9, "e");
+    } else if (estado === "error") {                    // ojos en x
+        pon(3, 8, "e"); pon(4, 9, "e"); pon(3, 10, "e"); pon(8, 8, "e"); pon(9, 9, "e"); pon(8, 10, "e");
+    } else {
+        pon(4, 8, "e"); pon(4, 9, "e"); pon(8, 8, "e"); pon(8, 9, "e");
+    }
+    if (estado === "hablando" && paso % 2 === 0) {      // boca abierta
+        pon(5, 10, "m"); pon(6, 10, "m"); pon(7, 10, "m"); pon(6, 11, "m");
+    } else if (estado !== "error") {
+        pon(6, 10, "m");
+    }
+    // la llama: tiembla al pensar, crece al oír y se achica en pausa
+    if (estado === "pausa") {
+        pon(6, 0, "."); pon(5, 1, "."); pon(7, 1, "."); pon(6, 1, "f");
+    } else if (estado === "pensando" || estado === "confirmando") {
+        var lado = [5, 6, 7, 6][paso % 4];
+        pon(6, 0, "."); pon(lado, 0, "F");
+    } else if (estado === "oyendo") {
+        pon(4, 1, "f"); pon(8, 1, "f"); pon(5, 0, "f"); pon(7, 0, "f");
+    }
+    var r = [];
+    for (var y = 0; y < g.length; y++)
+        for (var x = 0; x < g[y].length; x++)
+            if (g[y][x] !== ".") r.push([x, y, g[y][x]]);
+    return r;
+}

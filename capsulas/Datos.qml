@@ -16,6 +16,9 @@ Singleton {
     readonly property var docs: estado ? estado.documentos : null
     readonly property var audio: estado ? estado.audio : null
     readonly property var herramientas: estado ? estado.herramientas : null
+    readonly property var asistente: estado ? estado.asistente : null
+    // mientras el asistente trabaja se pregunta más seguido (p. ej. para esconderse antes de mirar la pantalla)
+    readonly property bool rapido: !!asistente && ["pensando", "oyendo", "confirmando", "hablando"].includes(asistente.estado)
 
     function actualizar() {
         const x = new XMLHttpRequest();
@@ -46,7 +49,7 @@ Singleton {
     }
 
     Timer {
-        interval: 2000
+        interval: datos.rapido ? 300 : 2000
         running: true
         repeat: true
         triggeredOnStart: true

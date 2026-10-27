@@ -14,6 +14,7 @@ POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Ak
                           (los audios y videos van a la transcripción)
 POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
+POST /api/asistente       {"accion", ...}           (preguntar, ajustes, voz… ver asistente.py y voz.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -28,6 +29,8 @@ from .comun import CONFIG, IDIOMA, RAIZ, WINDOWS, ajustes, escribir_json
 from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
 from .herramientas import MonitorHerramientas
+from .asistente import Asistente
+from .voz import Voz
 from .ia import MonitorIA
 from .modelos import MonitorModelos
 from .documentos import Conversor
@@ -53,6 +56,8 @@ class Servicio:
         self.modelos = MonitorModelos(self.cambio)
         self.documentos = Conversor(self.cambio)
         self.audio = Transcriptor(self.cambio, self.modelos)
+        self.asistente = Asistente(self.cambio, self.modelos)
+        self.asistente.voz = Voz(self.cambio, self.asistente)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -73,7 +78,7 @@ class Servicio:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
-                "herramientas": self.herramientas.estado}
+                "herramientas": self.herramientas.estado, "asistente": self.asistente.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -88,6 +93,7 @@ class Servicio:
                                 (self.revisar_tema, 5), (self.modelos.paso, 10), (self.herramientas.paso, 5)):
             threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
+        self.asistente.voz.revisar()        # si quedó prendida la palabra clave, vuelve a escuchar
 
 
 def crear_manejador(servicio):
@@ -155,6 +161,9 @@ def crear_manejador(servicio):
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/documentos":
                 return self._json(self._documentos(datos))
+            if ruta == "/api/asistente":
+                ok, mensaje = servicio.asistente.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/herramientas":
                 ok, mensaje = servicio.herramientas.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})

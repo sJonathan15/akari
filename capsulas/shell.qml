@@ -38,12 +38,13 @@ ShellRoot {
         }
     }
     LazyLoader {
-        active: raiz.visible("ia", ["uso", "modelos", "habilidades", "herramientas"])
+        active: raiz.visible("ia", ["asistente", "uso", "modelos", "habilidades", "herramientas"])
         CapsulaGrupo {
             nombre: "ia"
             lado: "derecha"
             altoMaximo: 780
             ocultas: raiz.ocultas
+            PiezaAsistente {}
             PiezaUso {}
             PiezaModelos {}
             PiezaHabilidades {}

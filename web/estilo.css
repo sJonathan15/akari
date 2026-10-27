@@ -380,3 +380,36 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .mod-fila small .icono { font-size: 12px; vertical-align: -2px; }
 .mod-fila > a.boton { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: inherit; white-space: nowrap; }
 .mod-fila > a.boton .icono { font-size: 15px; }
+
+/* asistente */
+#asis-contenido { display: flex; flex-direction: column; gap: 10px; }
+.asis-cabeza { display: flex; align-items: center; gap: 14px; }
+.asis-cabeza h3 { margin: 0 0 2px; font-size: 18px; font-weight: 500; }
+.asis-cabeza p { margin: 0; font-size: 13px; }
+.asis-cabeza .texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.asis-cara { width: 80px; height: 80px; flex: none; border-radius: 20px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--primario) 6%, transparent); transition: background-color 300ms; }
+.asis-cara.viva { background: color-mix(in srgb, var(--primario) 14%, transparent); }
+.acento { color: var(--primario); }
+.aviso-chico { color: var(--terciario); font-size: 11px; }
+.asis-centro { align-self: center; }
+.asis-opciones { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; padding: 0 6px; }
+.asis-seg { justify-content: flex-start; }
+.asis-seg button { padding: 5px 12px; font-size: 12px; }
+.asis-seg .icono { font-size: 15px; vertical-align: -3px; }
+.asis-voz { display: flex; flex-direction: column; gap: 8px; }
+.asis-fila { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.asis-fila > span { flex: 1; text-align: left; }
+.asis-fila > .icono { font-size: 18px; color: var(--texto-var); }
+.interruptor[disabled] { opacity: 0.4; cursor: default; }
+.asis-escribir { display: flex; align-items: center; gap: 6px; background: var(--contenedor-max); border-radius: 22px; padding: 4px 4px 4px 16px; }
+.asis-escribir:focus-within { outline: 1.5px solid var(--primario); }
+.asis-escribir input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--texto); font: inherit; font-size: 13px; height: 34px; }
+.asis-escribir .redondo { background: var(--primario); color: var(--sobre-primario); }
+.asis-entrada { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; }
+.asis-pregunta { display: flex; align-items: center; gap: 6px; }
+.asis-pregunta .icono { font-size: 15px; color: var(--texto-var); }
+.asis-pregunta strong { flex: 1; font-weight: 500; font-size: 12.5px; }
+.asis-entrada p { margin: 0; font-size: 12.5px; color: var(--texto-var); line-height: 1.45; white-space: pre-wrap; }
+.asis-entrada small { font-size: 10px; }
+svg.muneco { display: block; }

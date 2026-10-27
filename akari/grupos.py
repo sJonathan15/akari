@@ -15,6 +15,7 @@ GRUPOS = [
      ]},
     {"id": "ia", "nombre": ("IA", "AI"), "lado": "derecha", "hueco": 8, "anchoAbierto": 384,
      "altoMaximo": 780, "teclado": True, "piezas": [
+         {"id": "asistente", "nombre": ("Asistente", "Assistant"), "icono": "chat", "chip": 48},
          {"id": "uso", "nombre": ("Uso de IA", "AI usage"), "icono": "bolt", "chip": 92},
          {"id": "modelos", "nombre": ("Modelos de IA", "AI models"), "icono": "psychology", "chip": 44},
          {"id": "habilidades", "nombre": ("Habilidades", "Skills"), "icono": "auto_awesome", "chip": 58},

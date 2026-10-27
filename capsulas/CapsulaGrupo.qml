@@ -27,6 +27,8 @@ Capsula {
     function elegir(clave) { actual = clave; }
     function piezaPara(url) { return piezas.find(p => p.acepta(url)) || null; }
 
+    // el asistente las esconde un momento antes de mirar la pantalla (para no salir en la captura)
+    visible: !(Datos.asistente && Datos.asistente.ocultar)
     anchoCerrado: piezas.reduce((suma, p) => suma + p.anchoChip, 0) + espacioChips * Math.max(0, piezas.length - 1) + 20
     anchoAbierto: pieza ? pieza.anchoAbierto : 380
     pideTeclado: piezas.some(p => p.pideTeclado)

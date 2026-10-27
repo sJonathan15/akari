@@ -7,12 +7,12 @@ import { Visor } from "./visor3d.js";
 const params = new URLSearchParams(location.search);
 const vista = params.get("vista");
 // la sección del panel de cada pieza
-const PIEZAS = { dispositivos: "p-disp", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", herramientas: "p-herr",
+const PIEZAS = { dispositivos: "p-disp", asistente: "p-asis", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", herramientas: "p-herr",
   documentos: "p-doc", audio: "p-audio" };
 // copia de akari/grupos.py para el primer dibujo; se reemplaza con GET /api/burbujas
 let GRUPOS = [
   { id: "equipo", piezas: [{ id: "dispositivos", icono: "devices", chip: 254 }] },
-  { id: "ia", piezas: [{ id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }, { id: "herramientas", icono: "construction", chip: 64 }] },
+  { id: "ia", piezas: [{ id: "asistente", icono: "chat", chip: 48 }, { id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }, { id: "herramientas", icono: "construction", chip: 64 }] },
   { id: "archivos", piezas: [{ id: "documentos", icono: "swap_horiz", chip: 58 }, { id: "audio", icono: "graphic_eq", chip: 72 }] },
 ];
 // burbuja: el grupo; c= de antes (una burbuja por función) sigue andando
@@ -338,6 +338,100 @@ function dibujarHab() {
   }
 }
 
+// ------------------------------------------------------------------ asistente
+// El asistente (akari/asistente.py): un muñequito pixel-art propio (un farolito con llama; el mismo
+// dibujo que capsulas/utiles.js), dónde se hace, quién responde, la voz y el historial.
+const MUNECO = ["......F......", ".....fFf.....", ".....fff.....", "......o......", "...ooooooo...", "..obbbbbbbo..",
+  ".obllbbbbbbo.", ".oblbbbbbbbo.", ".obbbbbbbbbo.", ".obbbbbbbbbo.", ".obcbbbbbcbo.", "..obbbbbbbo..", "...ooooooo...", "...oo...oo..."];
+function pixelesMuneco(estado, paso) {
+  const g = MUNECO.map((f) => f.split(""));
+  const pon = (x, y, c) => { g[y][x] = c; };
+  const parpadeo = estado !== "pausa" && paso % 26 === 0;
+  if (estado === "pausa" || parpadeo) { pon(3, 9, "e"); pon(4, 9, "e"); pon(8, 9, "e"); pon(9, 9, "e"); }
+  else if (estado === "pensando") { pon(4, 7, "e"); pon(4, 8, "e"); pon(8, 7, "e"); pon(8, 8, "e"); }
+  else if (estado === "oyendo" || estado === "confirmando") {
+    for (const [x, y] of [[4, 8], [5, 8], [4, 9], [5, 9], [7, 8], [8, 8], [7, 9], [8, 9]]) pon(x, y, "e");
+  } else if (estado === "error") { for (const [x, y] of [[3, 8], [4, 9], [3, 10], [8, 8], [9, 9], [8, 10]]) pon(x, y, "e"); }
+  else { pon(4, 8, "e"); pon(4, 9, "e"); pon(8, 8, "e"); pon(8, 9, "e"); }
+  if (estado === "hablando" && paso % 2 === 0) { pon(5, 10, "m"); pon(6, 10, "m"); pon(7, 10, "m"); pon(6, 11, "m"); }
+  else if (estado !== "error") pon(6, 10, "m");
+  if (estado === "pausa") { pon(6, 0, "."); pon(5, 1, "."); pon(7, 1, "."); pon(6, 1, "f"); }
+  else if (estado === "pensando" || estado === "confirmando") { pon(6, 0, "."); pon([5, 6, 7, 6][paso % 4], 0, "F"); }
+  else if (estado === "oyendo") { pon(4, 1, "f"); pon(8, 1, "f"); pon(5, 0, "f"); pon(7, 0, "f"); }
+  const r = [];
+  g.forEach((fila, y) => fila.forEach((c, x) => { if (c !== ".") r.push([x, y, c]); }));
+  return r;
+}
+let pasoMuneco = 0;
+const COLOR_MUNECO = { o: "color-mix(in srgb, var(--primario) 15%, var(--superficie))", b: "var(--primario)",
+  l: "color-mix(in srgb, var(--primario) 60%, white)", e: "var(--sobre-primario)", c: "color-mix(in srgb, var(--terciario) 85%, transparent)",
+  m: "var(--sobre-primario)", f: "var(--terciario)", F: "color-mix(in srgb, var(--terciario) 70%, white)" };
+function munecoSVG(estado, ancho, alto) {
+  const rects = pixelesMuneco(estado, pasoMuneco).map(([x, y, c]) => `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${COLOR_MUNECO[c]}"/>`).join("");
+  return `<svg class="muneco" data-estado="${estado}" viewBox="0 0 13 14" width="${ancho}" height="${alto}" shape-rendering="crispEdges">${rects}</svg>`;
+}
+function faseAsistente() {
+  const A = E && E.asistente;
+  if (!A) return "pausa";
+  const h = A.historial[0];
+  return h && h.error && ahora() - h.t < 8 ? "error" : A.estado;
+}
+// la animación: solo se redibujan los muñequitos, no la página
+setInterval(() => {
+  pasoMuneco++;
+  document.querySelectorAll("svg.muneco").forEach((svg) => {
+    const ancho = svg.getAttribute("width"), alto = svg.getAttribute("height");
+    svg.outerHTML = munecoSVG(svg.dataset.estado, ancho, alto);
+  });
+}, 160);
+
+let asisDibujado = "";
+function dibujarAsistente() {
+  const caja = $("#asis-contenido");
+  const A = E.asistente;
+  if (!caja || !A) return;
+  if (caja.contains(document.activeElement) && document.activeElement.matches("input")) {
+    // escribiendo: solo el muñequito y el estado, para no perder el texto
+    const est = $("#asis-estado");
+    if (est) est.textContent = textoAsistente(A);
+    return;
+  }
+  const aj = A.ajustes, v = A.voz, fase = faseAsistente();
+  const seg = (clave, opciones) => `<div class="sub-pestanas asis-seg">${opciones.map(([val, ic, texto]) =>
+    `<button data-asis-aj="${clave}" data-valor="${val}" class="${aj[clave] === val ? "activa" : ""}">${icono(ic)} ${texto}</button>`).join("")}</div>`;
+  const sw = (clave) => `<button class="interruptor ${aj[clave] ? "on" : ""}" data-asis-sw="${clave}" ${v.instalada ? "" : "disabled"} aria-label="on/off"></button>`;
+  const entrada = (h) => `<div class="tarjeta asis-entrada"><div class="asis-pregunta">${icono(h.via === "voz" ? "mic" : "chat_bubble")}
+      <strong>${esc(h.pregunta)}</strong><span class="mono chico tenue">${hora(h.t)}</span></div>
+      <p class="${h.error ? "error" : ""}">${esc(h.respuesta)}</p>
+      ${h.herramientas.length || h.quien === "claude" ? `<small class="tenue">${[h.quien === "claude" ? "Claude" : h.quien === "akari" ? t("sin modelo", "no model") : "", ...h.herramientas].filter(Boolean).map(esc).join(" · ")}</small>` : ""}</div>`;
+  const html = `<div class="tarjeta asis-cabeza"><span class="asis-cara${fase === "pausa" ? "" : " viva"}">${munecoSVG(fase, 65, 70)}</span>
+      <div class="texto"><h3>${t("Asistente", "Assistant")}</h3><p id="asis-estado" class="${fase === "error" ? "error" : fase === "pausa" ? "tenue" : "acento"}">${esc(textoAsistente(A))}</p>
+      ${A.listo ? "" : `<small class="aviso-chico">${esc(A.motivo)}</small>`}</div></div>
+    ${!A.listo && aj.quien === "local" ? `<button class="boton principal asis-centro" data-ir="modelos">${icono("psychology")} ${t("Elegir un modelo de IA", "Choose an AI model")}</button>` : ""}
+    <div class="asis-opciones"><span class="tenue chico">${t("Hacerlo en", "Do it in")}</span>${seg("donde", [["terminal", "terminal", t("Terminal", "Terminal")], ["fondo", "bolt", t("Segundo plano", "Background")]])}
+      <span class="tenue chico">${t("Quién", "Who")}</span>${seg("quien", [["claude", "auto_awesome", "Claude"], ["local", "psychology", t("Local", "Local")]])}</div>
+    <div class="tarjeta asis-voz">
+      <div class="asis-fila"><span>${t("Escuchar palabra clave «akari»", "Listen for “akari”")}</span>${sw("palabra_clave")}</div>
+      <div class="asis-fila"><span>${t("Responder en voz alta", "Answer out loud")}</span>${v.hablando ? `<button class="redondo" data-asis="callar" title="${t("Callar", "Stop")}">${icono("volume_off")}</button>` : ""}${sw("voz_alta")}</div>
+      ${v.instalada ? (v.microfono ? "" : `<p class="chico aviso-chico">${t("Falta pw-record o parecord para usar el micrófono.", "pw-record or parecord is needed for the microphone.")}</p>`)
+        : `<div class="asis-fila"><span class="chico ${v.error ? "error" : "tenue"}">${esc(v.error || t("La voz se descarga aparte (≈350 MB, sin contraseña). Sin ella, escríbele.", "Voice is a separate download (≈350 MB, no password). Without it, type."))}</span>
+          ${v.instalando ? `<button class="redondo" disabled>${icono("progress_activity").replace('class="icono', 'class="icono girando')}</button>` : `<button class="boton" data-asis="instalar_voz">${icono("mic")} ${t("Instalar voz", "Install voice")}</button>`}</div>`}
+      <div class="asis-fila">${icono("edit_note")}<span class="chico tenue">${aj.notas ? t("Notas: ", "Notes: ") + esc(aj.notas.split(/[\\/]/).pop()) : t("Sin carpeta de notas (sirve una bóveda de Obsidian)", "No notes folder (an Obsidian vault works)")}</span>
+        <button class="redondo" data-asis="elegir_notas" title="${t("Elegir carpeta de notas", "Choose notes folder")}">${icono("folder_open")}</button></div></div>
+    <form class="asis-escribir" id="asis-form"><input name="texto" autocomplete="off" placeholder="${t("O escríbelo aquí…", "Or type it here…")}" ${fase === "pensando" ? "disabled" : ""}>
+      <button class="redondo" type="submit">${icono(fase === "pensando" ? "progress_activity" : "arrow_upward").replace('class="icono', `class="icono${fase === "pensando" ? " girando" : ""}`)}</button></form>
+    ${A.historial.slice(0, 8).map(entrada).join("")}
+    ${A.historial.length ? `<button class="redondo asis-centro" data-asis="borrar" title="${t("Borrar el historial", "Clear history")}">${icono("delete_sweep")}</button>` : ""}`;
+  if (html === asisDibujado) return;
+  asisDibujado = html;
+  caja.innerHTML = html;
+}
+function textoAsistente(A) {
+  return { pausa: t("Micrófono en pausa", "Microphone paused"), escuchando: t("Escuchando «akari»…", "Listening for “akari”…"),
+    oyendo: t("Te escucho…", "I'm listening…"), confirmando: t("Te escucho…", "I'm listening…"), pensando: t("Pensando…", "Thinking…"),
+    hablando: t("Hablando…", "Speaking…"), error: t("Algo falló", "Something failed") }[faseAsistente()] || "";
+}
+
 // ------------------------------------------------------------------ herramientas
 // Herramientas de terminal para quien usa Claude Code / Codex (akari/herramientas.py). Si la única
 // forma de instalar pide contraseña, se copia el comando o se abre en una terminal.
@@ -605,6 +699,7 @@ function htmlChip(id, ancho) {
         <span class="mono chico" style="color:${nv === "nada" ? VAR("--contorno") : VAR("--texto-var")}">${textoCorto(d)}${d.cargando ? "⚡" : ""}</span></span>`;
     }).join("") || `<span class="tenue chico b-centro">${t("Sin periféricos todavía", "No devices yet")}</span>`;
   }
+  if (id === "asistente") return munecoSVG(faseAsistente(), 24, 26);
   if (id === "modelos") {
     const M = E.modelos, d = M && M.ollama.descarga, bajando = d && !d.error && d.pct < 100;
     return icono(bajando ? "progress_activity" : M && M.listo ? "psychology" : "key", !!(M && M.listo))
@@ -647,13 +742,17 @@ function dibujar() {
   if (!E) return;
   aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
-  if (burbuja) dibujarCabecera();
-  const dibujos = { dispositivos: dibujarDisp, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio };
+  if (burbuja) {
+    // el asistente las esconde un momento antes de mirar la pantalla (para no salir en la captura)
+    document.documentElement.style.visibility = E.asistente && E.asistente.ocultar ? "hidden" : "";
+    dibujarCabecera();
+  }
+  const dibujos = { dispositivos: dibujarDisp, asistente: dibujarAsistente, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio };
   if (dibujos[ui.pagina]) dibujos[ui.pagina]();
 }
 
 // ------------------------------------------------------------------ grupos y piezas
-const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
+const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], asistente: ["Asistente", "Assistant"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
   habilidades: ["Habilidades", "Skills"], herramientas: ["Herramientas", "Tools"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"] };
 const nombrePieza = (id) => (NOMBRES[id] ? t(...NOMBRES[id]) : id);
 const grupoDe = (id) => GRUPOS.find((g) => g.id === id) || GRUPOS[0];
@@ -750,6 +849,9 @@ document.addEventListener("click", async (e) => {
     if (burbuja && !piezasDe(burbuja).some((p) => p.id === "modelos")) return window.akari && window.akari.alternarPanel();
     return mostrarPieza("modelos");
   }
+  if (b.dataset.asisAj) { asisDibujado = ""; return enviar("/api/asistente", { accion: "ajustes", [b.dataset.asisAj]: b.dataset.valor }); }
+  if (b.dataset.asisSw) { asisDibujado = ""; return enviar("/api/asistente", { accion: "ajustes", [b.dataset.asisSw]: !E.asistente.ajustes[b.dataset.asisSw] }); }
+  if (b.dataset.asis) { asisDibujado = ""; return enviar("/api/asistente", { accion: b.dataset.asis }); }
   if (b.dataset.herr) {
     const acc = b.dataset.herr;
     if (acc === "copiar" && navigator.clipboard) {
@@ -818,6 +920,16 @@ document.addEventListener("submit", async (e) => {
     ui.modRespuesta = r.mensaje || "";
     modelosDibujado = "";
     return dibujar();
+  }
+  if (e.target.id === "asis-form") {
+    e.preventDefault();
+    const campo = e.target.elements.texto;
+    const texto = campo.value.trim();
+    if (!texto) return;
+    campo.value = "";
+    campo.blur();
+    asisDibujado = "";
+    return enviar("/api/asistente", { accion: "preguntar", texto });
   }
   if (e.target.id !== "form-activar") return;
   e.preventDefault();
@@ -963,7 +1075,7 @@ if (burbuja) {
   $("#panel").hidden = false;
   const p = params.get("pagina");
   const antes = { ia: "uso", disp: "dispositivos", hab: "habilidades", doc: "documentos" };     // ?pagina= de antes
-  mostrarPieza(PIEZAS[p] ? p : antes[p] || (GRUPOS.some((g) => g.id === p) ? piezasDe(p)[0].id : "uso"));
+  mostrarPieza(PIEZAS[p] ? p : antes[p] || (GRUPOS.some((g) => g.id === p) ? piezasDe(p)[0].id : "asistente"));
 }
 cargarGrupos();
 traducir();
