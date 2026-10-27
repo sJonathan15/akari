@@ -12,6 +12,7 @@
 // fuera de Windows (solo para desarrollar) las píldoras nativas no se usan
 #![cfg_attr(not(windows), allow(dead_code))]
 
+mod actualizar;
 mod cabecera;
 mod cerradas;
 mod forma;
@@ -522,6 +523,12 @@ fn alternar_panel(app: AppHandle) {
   alternar(&app);
 }
 
+/// El botón «Actualizar» del panel (web/ventana.js → window.akari.actualizar).
+#[tauri::command]
+fn actualizar(app: AppHandle, version: String) {
+  std::thread::spawn(move || actualizar::ofrecer(&app, &version, false));
+}
+
 fn recolocar_todas(app: &AppHandle) {
   let (_, _, w, h, _) = area(app);
   let estado = app.state::<Arc<App>>();
@@ -823,7 +830,8 @@ fn main() {
         alternar(app);
       }
     }))
-    .invoke_handler(tauri::generate_handler![burbuja, alternar_panel])
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .invoke_handler(tauri::generate_handler![burbuja, alternar_panel, actualizar])
     .setup(move |app| {
       let (raiz, python) = servicio::rutas(app.path().resource_dir().ok());
       let estado = Arc::new(App {
@@ -852,6 +860,7 @@ fn main() {
       crear_bandeja(app.handle())?;
       let handle = app.handle().clone();
       std::thread::spawn(move || arrancar(handle));
+      actualizar::vigilar(app.handle().clone());
       Ok(())
     })
     .on_window_event(|ventana, ev| match ev {

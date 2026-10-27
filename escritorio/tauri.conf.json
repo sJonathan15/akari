@@ -42,5 +42,8 @@
         "compression": "lzma"
       }
     }
+  },
+  "plugins": {
+    "updater": { "pubkey": "", "windows": { "installMode": "passive" } }
   }
 }

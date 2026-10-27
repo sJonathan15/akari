@@ -13,6 +13,7 @@ const fs = require("fs");
 const http = require("http");
 const os = require("os");
 const path = require("path");
+const actualizar = require("./actualizar");
 
 const WINDOWS = process.platform === "win32";
 const LINUX = process.platform === "linux";
@@ -403,6 +404,26 @@ function crearBandeja() {
 }
 
 ipcMain.on("alternar-panel", alternarPanel);
+
+// versión nueva (la anuncia el servicio): aviso «Hay una versión nueva» y, desde el panel, el botón
+function avisarServicio(accion) {
+  const req = http.request(URL + "api/actualizacion", { method: "POST", headers: { "Content-Type": "application/json" } });
+  req.on("error", () => {});
+  req.end(JSON.stringify({ accion }));
+}
+function revisarActualizacion() {
+  http.get(URL + "api/estado", (r) => {
+    let texto = "";
+    r.on("data", (p) => (texto += p));
+    r.on("end", () => {
+      try {
+        const a = JSON.parse(texto).actualizacion;
+        if (a && !a.pospuesta) actualizar.ofrecer({ version: a.version, t, preguntar: true, avisarServicio });
+      } catch {}
+    });
+  }).on("error", () => {});
+}
+ipcMain.on("actualizar", (_e, version) => actualizar.ofrecer({ version: String(version), t, preguntar: false, avisarServicio }));
 app.on("second-instance", (_e, argv) => {
   if (argv.includes("--panel")) return panel ? (panel.show(), panel.focus()) : crearPanel();
   if (leerAjustes().burbujas === false) {
@@ -425,4 +446,9 @@ app.whenReady().then(async () => {
   // las ventanas transparentes de Linux salen negras si se crean antes de que el compositor responda
   setTimeout(crearBurbujas, LINUX ? 300 : 0);
   crearBandeja();
+  // solo el AppImage se actualiza solo (con install.sh lo hace `akari actualizar`)
+  if (process.env.APPIMAGE && actualizar.clavePublica()) {
+    setTimeout(revisarActualizacion, 120e3);
+    setInterval(revisarActualizacion, 1800e3);
+  }
 });

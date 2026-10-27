@@ -57,6 +57,8 @@ if (tauri && !electron) {
     alCambiarForma: ventana.alCambiarForma,
     alternarPanel: ventana.alternarPanel,
     rutaDe: (archivo) => rutas.get(archivo) || "",
+    // la app se actualiza sola, con el instalador firmado (escritorio/src/actualizar.rs)
+    actualizar: (version) => invocar("actualizar", { version: String(version) }),
   };
   window.__akariArrastre = ({ tipo, rutas: lista, x, y }) => {
     const dt = new DataTransfer();

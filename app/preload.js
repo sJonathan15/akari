@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld("akari", {
   rutaDe: (archivo) => {
     try { return webUtils.getPathForFile(archivo) || ""; } catch { return ""; }
   },
+  // solo el AppImage se actualiza solo: si no, el panel usa `akari actualizar` (el servicio)
+  ...(process.env.APPIMAGE ? { actualizar: (version) => ipcRenderer.send("actualizar", String(version)) } : {}),
   sistema: process.platform,
 });

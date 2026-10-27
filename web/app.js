@@ -755,6 +755,8 @@ document.addEventListener("click", async (e) => {
   const b = e.target.closest("#actualizacion [data-act]");
   if (!b) return;
   b.disabled = true;
+  // la app de Windows y el AppImage se actualizan solos (instalador firmado); si no, `akari actualizar`
+  if (b.dataset.act === "instalar" && window.akari && window.akari.actualizar) return window.akari.actualizar(E.actualizacion.version);
   const r = await enviar("/api/actualizacion", { accion: b.dataset.act });
   if (!r.ok && r.mensaje) { b.disabled = false; alert(r.mensaje); }
 });

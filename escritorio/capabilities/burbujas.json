@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "burbujas",
-  "description": "La página del servicio de akari (solo en 127.0.0.1) puede abrir, mover y cerrar su burbuja y abrir el panel. Nada más: ni archivos, ni procesos, ni red.",
+  "description": "La página del servicio de akari (solo en 127.0.0.1) puede abrir, mover y cerrar su burbuja, abrir el panel y pedir la actualización (que solo instala lo firmado). Nada más: ni archivos, ni procesos, ni red.",
   "windows": ["*"],
   "remote": { "urls": ["http://127.0.0.1:47830/*"] },
-  "permissions": ["allow-burbuja", "allow-alternar-panel"]
+  "permissions": ["allow-burbuja", "allow-alternar-panel", "allow-actualizar"]
 }

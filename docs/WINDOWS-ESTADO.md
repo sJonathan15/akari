@@ -109,6 +109,21 @@ Por partes, cada una con su commit:
    Probado en Linux de punta a punta (usuario sin root, install.sh → `akari actualizar` contra un
    GitHub falso con v9.9.9: versión nueva instalada, `ajustes.json` y `entornos/` intactos) y el
    aviso del panel con Playwright. ⬜ Falta probar `windows-codigo` y `windows-app` en Windows.
-3. ⬜ App de Windows y AppImage: updater de Tauri con GitHub Releases y `latest.json`, firmado (clave
-   privada solo como secreto del CI), aviso «Hay una versión nueva» con Actualizar / Ahora no.
+3. ✅ App de Windows y AppImage, con el mismo `latest.json` firmado de la release. Quién decide si
+   hay versión nueva es el servicio (parte 1); las apps miran su `/api/estado` cada 30 min (primera
+   vez a los 2 min) y piden `releases/download/v<versión>/latest.json`, así el canal beta y «Ahora
+   no» valen igual en todas partes.
+   - Windows (`escritorio/src/actualizar.rs`): `tauri-plugin-updater` =2.13.0 (TLS del sistema,
+     sin C), clave pública en `plugins.updater.pubkey` de `tauri.conf.json` (vacía en el repo: el
+     CI la pone; vacía = no se actualiza), instalador en modo pasivo. Aviso con TaskDialog
+     (Actualizar / Ahora no; si no hay, MessageBox Sí/No). El botón del panel llama
+     `window.akari.actualizar(version)` → orden `actualizar` (capability `allow-actualizar`).
+   - AppImage (`app/actualizar.js`, Electron): baja el AppImage de `platforms.linux-x86_64`,
+     comprueba la firma minisign (la de `tauri signer sign`, con `crypto` de Node: ed25519 +
+     blake2b) con `app/clave-actualizar.pub` (la escribe el CI), lo cambia de un golpe y se
+     reinicia. Diálogo de Electron Actualizar / Ahora no. Prueba: `node pruebas/app/prueba_actualizar.js`
+     (firma real de `tauri signer` con una clave desechable; solo la pública está en el repo).
+   - ⬜ Sin probar de verdad: que el instalador de NSIS en modo actualización vuelva a abrir la app
+     sola (si no, añadir en `nsis/ganchos.nsh` un `Exec` de `akari.exe` en `NSIS_HOOK_POSTINSTALL`
+     cuando venga `/UPDATE`), y el reemplazo del AppImage en un escritorio real.
 4. ⬜ CI: en cada etiqueta `v*` publica AppImage, `.exe`, sus firmas y `latest.json`.
