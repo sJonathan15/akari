@@ -55,6 +55,24 @@ class Servicio(unittest.TestCase):
         self.assertIn(b'id="burbuja"', cuerpo)
         self.assertEqual(self.pedir("/app.js")[0], 200)
 
+    def test_burbujas_y_reposo(self):
+        _, _, cuerpo = self.pedir("/api/burbujas")
+        d = json.loads(cuerpo)
+        nombres = {b["nombre"] for b in d["burbujas"]}
+        self.assertTrue({"ia", "dispositivos", "habilidades"} <= nombres)
+        ia = next(b for b in d["burbujas"] if b["nombre"] == "ia")
+        self.assertTrue(ia["teclado"])
+        self.assertGreater(ia["anchoAbierto"], ia["anchoCerrado"])
+
+        def avisar(abiertas):
+            r = urllib.request.Request(URL + "/api/burbujas", data=json.dumps({"abiertas": abiertas}).encode(),
+                                       method="POST", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(r, timeout=5) as respuesta:
+                return json.loads(respuesta.read())["reposo"]
+        self.assertTrue(avisar([]))
+        self.assertFalse(avisar(["ia"]))
+        self.assertFalse(json.loads(self.pedir("/api/burbujas")[2])["reposo"])
+
     def test_solo_json(self):
         r = urllib.request.Request(URL + "/api/ajustes", data=b"idioma=es", method="POST",
                                    headers={"Content-Type": "application/x-www-form-urlencoded"})

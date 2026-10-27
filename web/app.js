@@ -3,6 +3,7 @@
 // Con ?vista=burbuja&c=ia|dispositivos|habilidades dibuja una de las burbujas flotantes de la
 // app de escritorio: la misma sección del panel, con su cabecera y su animación de apertura.
 import { Visor } from "./visor3d.js";
+import { ventana } from "./ventana.js";
 
 const vista = new URLSearchParams(location.search).get("vista");
 const SECCIONES = { ia: ["ia", "p-ia"], dispositivos: ["disp", "p-disp"], habilidades: ["hab", "p-hab"], documentos: ["doc", "p-doc"] };
@@ -538,7 +539,7 @@ document.addEventListener("click", async (e) => {
     const total = (((h * 60 + m + Number(b.dataset.d)) % 1440) + 1440) % 1440;
     return enviar("/api/ia/activador", { [b.dataset.hora]: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` });
   }
-  if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
+  if (b.id === "b-panel") ventana.alternarPanel();
   if (b.dataset.docModo) { ui.docModo = b.dataset.docModo; ui.docRespuesta = ""; return dibujar(); }
   if (b.dataset.docFormato) { ui.docFormato = b.dataset.docFormato; return dibujar(); }
   if (b.dataset.doc) {
@@ -600,7 +601,7 @@ document.addEventListener("submit", async (e) => {
 // puntero: pasar por encima abre, clic en la cabecera la deja fija, arrastrar la mueve.
 function iniciarBurbuja() {
   const forma = $("#b-forma"), cab = $("#b-cabecera"), contenido = $("#b-contenido");
-  const enviar = (accion, datos) => window.akari && window.akari.burbuja(accion, datos);
+  const enviar = (accion, datos) => ventana.burbuja(accion, datos);
   let F = null, fijada = false, cierre = null, arrastre = null, recienMovida = false;
 
   document.documentElement.classList.add("transparente");
@@ -659,7 +660,7 @@ function iniciarBurbuja() {
     forma.classList.toggle("abierta", f.abierta);
     if (visor) visor.pausado = !f.abierta;
   }
-  window.akari && window.akari.alCambiarForma(aplicarForma);
+  ventana.alCambiarForma(aplicarForma);
 
   // escribiendo en la burbuja de IA: no se cierra aunque el puntero salga
   const reteniendo = () => document.activeElement && document.activeElement.matches("input") && forma.contains(document.activeElement);

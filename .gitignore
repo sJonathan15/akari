@@ -7,3 +7,10 @@ app/dist/
 *.tmp
 .akari.json
 app/build/
+escritorio/target/
+escritorio/gen/
+escritorio/dist/
+escritorio/recursos/python/*
+!escritorio/recursos/python/.gitkeep
+escritorio/*.json.tmp
+escritorio/permissions/
