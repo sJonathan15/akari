@@ -5,7 +5,7 @@
 import { Visor } from "./visor3d.js";
 
 const vista = new URLSearchParams(location.search).get("vista");
-const SECCIONES = { ia: ["ia", "p-ia"], dispositivos: ["disp", "p-disp"], habilidades: ["hab", "p-hab"] };
+const SECCIONES = { ia: ["ia", "p-ia"], dispositivos: ["disp", "p-disp"], habilidades: ["hab", "p-hab"], documentos: ["doc", "p-doc"] };
 const pedida = new URLSearchParams(location.search).get("c");
 const burbuja = vista === "burbuja" ? (SECCIONES[pedida] ? pedida : "ia") : null;
 let E = null;                         // último estado
@@ -326,6 +326,96 @@ function dibujarHab() {
   }
 }
 
+// ------------------------------------------------------------------ documentos
+// Conversor PDF / Word / Excel ⇄ Markdown. Lo soltado sube al servicio (o va su ruta, si la app
+// de escritorio la da con window.akari.rutaDe) y el resultado queda junto al original.
+const ICONO_DOC = { md: "markdown", docx: "description", pdf: "picture_as_pdf" };
+let docDibujado = "";
+function dibujarDoc() {
+  const caja = $("#doc-contenido");
+  const D = E.documentos;
+  if (!caja || !D) return;
+  ui.docModo = ui.docModo || "a-md";
+  ui.docFormato = ui.docFormato || "docx";
+  let html;
+  if (!D.listo) {
+    html = `<div class="tarjeta doc-instalar"><span class="circulo">${icono("swap_horiz")}</span>
+      <div class="texto"><strong>${t("Conversor de documentos", "Document converter")}</strong>
+      <p>${t("PDF, Word y Excel a Markdown (para darle a una IA o a Obsidian) y Markdown o lo que copiaste a Word o PDF. Se instala una vez (≈150 MB, sin contraseña).", "PDF, Word and Excel to Markdown (for an AI or Obsidian) and Markdown or copied text to Word or PDF. Installs once (≈150 MB, no password).")}</p>
+      ${D.error_instalacion ? `<small class="error">${esc(D.error_instalacion)}</small>` : ""}</div>
+      ${D.instalando ? `<button class="redondo" disabled>${icono("progress_activity").replace('class="icono', 'class="icono girando')}</button>`
+        : `<button class="boton principal" data-doc="instalar">${t("Instalar", "Install")}</button>`}</div>`;
+  } else {
+    const aMd = ui.docModo === "a-md";
+    const pdfNo = !aMd && ui.docFormato === "pdf" && !D.libreoffice;
+    const fila = (x) => {
+      const ic = x.estado === "listo" ? ICONO_DOC[x.formato] || "description" : x.estado === "error" ? "error" : "progress_activity";
+      const destino = x.formato === "md" ? "Markdown" : x.formato === "pdf" ? "PDF" : "Word";
+      return `<div class="doc-fila e-${x.estado}" ${x.estado === "listo" ? `data-doc="abrir" data-id="${x.id}" title="${t("Abrir", "Open")}"` : ""}>
+        ${icono(ic).replace('class="icono', `class="icono${x.estado === "convirtiendo" || x.estado === "cola" ? " girando" : ""}`)}
+        <div class="texto"><strong>${esc(x.nombre)}</strong><small>${x.estado === "cola" ? t("En espera…", "Waiting…") : x.estado === "convirtiendo" ? t("Convirtiendo a ", "Converting to ") + destino + "…" : esc(x.estado === "listo" ? "→ " + destino + " · " + x.mensaje : x.mensaje)}</small></div>
+        ${x.estado === "listo" ? `<button class="redondo" data-doc="abrir" data-id="${x.id}" data-carpeta="1" title="${t("Abrir carpeta", "Open folder")}">${icono("folder_open")}</button>` : ""}</div>`;
+    };
+    html = `<div class="sub-pestanas"><button data-doc-modo="a-md" class="${aMd ? "activa" : ""}">${t("A Markdown", "To Markdown")}</button>
+        <button data-doc-modo="desde-md" class="${aMd ? "" : "activa"}">${t("Desde Markdown", "From Markdown")}</button></div>
+      ${aMd ? "" : `<div class="doc-formatos"><span class="tenue chico">${t("Sacar como", "Save as")}</span>
+        <button class="mod-chip${ui.docFormato === "docx" ? " ok" : ""}" data-doc-formato="docx">${icono("description")}Word</button>
+        <button class="mod-chip${ui.docFormato === "pdf" ? " ok" : ""}" data-doc-formato="pdf">${icono("picture_as_pdf")}PDF</button></div>`}
+      ${pdfNo ? `<p class="chico error">${t("Para PDF hace falta LibreOffice (gratis). Word funciona sin él.", "PDF needs LibreOffice (free). Word works without it.")}</p>` : ""}
+      <div class="doc-soltar" id="doc-soltar">${icono(aMd ? "upload_file" : "markdown")}
+        <strong>${aMd ? t("Suelta aquí PDF, Word, Excel o CSV", "Drop PDF, Word, Excel or CSV here") : t("Suelta aquí archivos Markdown (.md)", "Drop Markdown (.md) files here")}</strong>
+        <span class="tenue chico">${aMd ? t("Sale un .md junto al original, listo para una IA u Obsidian.", "A .md appears next to the original, ready for an AI or Obsidian.") : t("Sale un documento con las tablas bien repartidas.", "You get a document with well-sized tables.")}</span>
+        <div class="doc-botones"><button class="boton principal" data-doc="elegir" ${D.eligiendo || pdfNo ? "disabled" : ""}>${icono("folder_open")} ${t("Elegir archivos", "Choose files")}</button>
+        ${aMd ? "" : `<button class="boton" data-doc="portapapeles" ${pdfNo ? "disabled" : ""}>${icono("content_paste")} ${t("Convertir lo copiado", "Convert clipboard")}</button>`}</div></div>
+      ${ui.docRespuesta ? `<p class="chico mod-respuesta">${esc(ui.docRespuesta)}</p>` : ""}
+      ${D.trabajos.length ? `<div class="tarjeta"><div class="doc-cabeza"><h3>${t("Últimos", "Recent")}</h3><span class="b-relleno"></span>
+        <button class="redondo" data-doc="carpeta" title="${t("Carpeta de akari en Documentos", "akari folder in Documents")}">${icono("folder")}</button>
+        <button class="redondo" data-doc="limpiar" title="${t("Vaciar la lista (no borra archivos)", "Clear list (keeps files)")}">${icono("delete_sweep")}</button></div>
+        <div class="doc-lista">${D.trabajos.slice(0, 12).map(fila).join("")}</div></div>` : ""}`;
+  }
+  if (html === docDibujado) return;
+  docDibujado = html;
+  caja.innerHTML = html;
+}
+
+async function subirDocumentos(archivos) {
+  const D = E && E.documentos;
+  if (!D || !D.listo) return;
+  const rutas = [];
+  ui.docRespuesta = "";
+  for (const f of archivos) {
+    const ruta = window.akari && window.akari.rutaDe ? window.akari.rutaDe(f) : "";
+    if (ruta) { rutas.push(ruta); continue; }
+    try {
+      const r = await fetch("/api/documentos/subir", { method: "POST", body: f, headers: { "Content-Type": "application/octet-stream",
+        "X-Akari-Nombre": encodeURIComponent(f.name), "X-Akari-Formato": ui.docFormato || "docx" } });
+      const j = await r.json();
+      if (!j.ok) ui.docRespuesta = j.mensaje || f.name;
+    } catch { ui.docRespuesta = t("akari no respondió.", "akari did not answer."); }
+  }
+  if (rutas.length) {
+    const r = await enviar("/api/documentos", { accion: "convertir", rutas, formato: ui.docFormato });
+    if (!r.ok) ui.docRespuesta = r.mensaje || "";
+  }
+  docDibujado = "";
+  dibujar();
+}
+// soltar archivos en la zona (o en toda la página de documentos / la burbuja de documentos)
+document.addEventListener("dragover", (e) => {
+  if (!e.target.closest("#p-doc")) return;
+  e.preventDefault();
+  const zona = $("#doc-soltar");
+  if (zona) zona.classList.add("encima");
+});
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget || !e.relatedTarget.closest("#p-doc")) { const z = $("#doc-soltar"); if (z) z.classList.remove("encima"); } });
+document.addEventListener("drop", (e) => {
+  if (!e.target.closest("#p-doc")) return;
+  e.preventDefault();
+  const z = $("#doc-soltar");
+  if (z) z.classList.remove("encima");
+  if (e.dataTransfer.files.length) subirDocumentos([...e.dataTransfer.files]);
+});
+
 // ------------------------------------------------------------------ cabecera de las burbujas
 // Lo mismo que muestran cerradas las cápsulas de Quickshell (capsulas/Capsula*.qml).
 function textoCorto(d) {
@@ -372,6 +462,12 @@ function htmlCabecera() {
       return `<span class="b-disp${nv === "bajo" && !d.cargando ? " late" : ""}">${icono(ICONOS_DISP[d.tipo] || "devices", d.conectado).replace('class="icono', `style="color:${colorNivel(nv)}" class="icono`)}
         <span class="mono chico" style="color:${nv === "nada" ? VAR("--contorno") : VAR("--texto-var")}">${textoCorto(d)}${d.cargando ? "⚡" : ""}</span></span>`;
     }).join("") || `<span class="tenue chico b-centro">${t("Sin periféricos todavía", "No devices yet")}</span>`;
+  } else if (burbuja === "documentos") {
+    const D = E.documentos;
+    const activos = D ? D.trabajos.filter((x) => x.estado === "cola" || x.estado === "convirtiendo").length : 0;
+    const ultimo = D && D.trabajos[0];
+    return `${icono("swap_horiz", true).replace('class="icono', `class="icono b-estrella${activos ? " girando" : ""}`)}
+      <span class="tenue chico">${!D ? "—" : !D.listo ? t("Conversor sin instalar", "Converter not installed") : activos ? t("Convirtiendo ", "Converting ") + activos + "…" : ultimo ? esc(ultimo.nombre) : t("Suelta un documento", "Drop a document")}</span>`;
   } else {
     const H = E.habilidades;
     const instalando = !!H && [...H.recomendadas, ...H.mas].some((r) => r.tarea && r.tarea.estado === "instalando");
@@ -389,6 +485,7 @@ function dibujar() {
   if (ui.pagina === "ia") { dibujarIA(); dibujarModelos(); }
   if (ui.pagina === "disp") dibujarDisp();
   if (ui.pagina === "hab") dibujarHab();
+  if (ui.pagina === "doc") dibujarDoc();
 }
 
 function traducir() {
@@ -411,7 +508,7 @@ function conectar() {
 
 // eventos (delegados: el contenido se redibuja)
 document.addEventListener("click", async (e) => {
-  const b = e.target.closest("button");
+  const b = e.target.closest("button, .doc-fila[data-doc]");
   if (!b) return;
   if (b.closest("#pestanas")) {
     ui.pagina = b.dataset.p;
@@ -442,6 +539,16 @@ document.addEventListener("click", async (e) => {
     return enviar("/api/ia/activador", { [b.dataset.hora]: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` });
   }
   if (b.id === "b-panel" && window.akari) window.akari.alternarPanel();
+  if (b.dataset.docModo) { ui.docModo = b.dataset.docModo; ui.docRespuesta = ""; return dibujar(); }
+  if (b.dataset.docFormato) { ui.docFormato = b.dataset.docFormato; return dibujar(); }
+  if (b.dataset.doc) {
+    const acc = b.dataset.doc;
+    if (acc !== "abrir") b.disabled = true;
+    const r = await enviar("/api/documentos", { accion: acc, id: b.dataset.id, carpeta: !!b.dataset.carpeta, modo: ui.docModo, formato: ui.docFormato });
+    ui.docRespuesta = r.ok ? "" : r.mensaje || t("No se pudo.", "It didn't work.");
+    docDibujado = "";
+    return dibujar();
+  }
   if (b.dataset.modP) { ui.modPestana = b.dataset.modP; ui.modRespuesta = ""; return dibujar(); }
   if (b.dataset.mod) {
     const acc = b.dataset.mod;

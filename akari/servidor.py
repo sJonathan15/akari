@@ -8,6 +8,8 @@ POST /api/dispositivos    {"id", "accion", "valor"?}
 POST /api/habilidades     {"id", "accion", "destino"?}
 POST /api/ajustes         {"idioma"?, "avisos"?}
 POST /api/modelos         {"accion", ...}           (API o modelos locales, ver modelos.py)
+POST /api/documentos      {"accion", ...}           (conversor de documentos ⇄ Markdown)
+POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Akari-Formato
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -23,9 +25,11 @@ from .dispositivos import MonitorDispositivos
 from .habilidades import MonitorHabilidades
 from .ia import MonitorIA
 from .modelos import MonitorModelos
+from .documentos import Conversor
 from .tema import Tema
 
-DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
+DEMO = os.environ.get("AKARI_DEMO") == "1"
+MAX_SUBIDA = 200 * 2**20     # datos de ejemplo (capturas, pruebas)
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript",
          ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json",
@@ -40,6 +44,7 @@ class Servicio:
         self.dispositivos = MonitorDispositivos(self.cambio)
         self.habilidades = MonitorHabilidades(self.cambio)
         self.modelos = MonitorModelos(self.cambio)
+        self.documentos = Conversor(self.cambio)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -59,7 +64,7 @@ class Servicio:
         if DEMO:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-                "modelos": self.modelos.estado}
+                "modelos": self.modelos.estado, "documentos": self.documentos.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -109,6 +114,8 @@ def crear_manejador(servicio):
         def do_POST(self):
             # Solo JSON: una página web cualquiera no puede mandarlo a localhost sin permiso CORS
             # (que no damos), así que nadie de afuera puede accionar nada.
+            if self.path.split("?")[0] == "/api/documentos/subir":
+                return self._subir()
             if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
                 return self._json({"ok": False}, 415)
             try:
@@ -135,6 +142,9 @@ def crear_manejador(servicio):
             if ruta == "/api/modelos":
                 ok, mensaje = servicio.modelos.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
+            if ruta == "/api/documentos":
+                ok, mensaje = servicio.documentos.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/ajustes":
                 a = ajustes()
                 if datos.get("idioma") in ("es", "en", "auto"):
@@ -144,6 +154,21 @@ def crear_manejador(servicio):
                 escribir_json(CONFIG / "ajustes.json", a)
                 return self._json({"ok": True, "reiniciar": "idioma" in datos})
             self._json({"ok": False}, 404)
+
+        def _subir(self):
+            # application/octet-stream + cabecera propia: un navegador no lo manda a otro sitio sin
+            # preguntar antes (CORS), y aquí nunca se le da permiso.
+            from urllib.parse import unquote
+            if (self.headers.get("Content-Type", "").split(";")[0].strip() != "application/octet-stream"
+                    or not self.headers.get("X-Akari-Nombre")):
+                return self._json({"ok": False}, 415)
+            largo = int(self.headers.get("Content-Length") or 0)
+            if not 0 < largo <= MAX_SUBIDA:
+                return self._json({"ok": False, "mensaje": "> 200 MB"}, 413)
+            contenido = self.rfile.read(largo)
+            ok, mensaje = servicio.documentos.subir(unquote(self.headers["X-Akari-Nombre"]), contenido,
+                                                    self.headers.get("X-Akari-Formato", "docx"))
+            return self._json({"ok": ok, "mensaje": mensaje})
 
         def _eventos(self):
             self.send_response(200)

@@ -327,3 +327,31 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .mod-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .mod-chips .mod-chip { border: 0; cursor: pointer; font: inherit; font-size: 11px; }
 .error { color: var(--error); }
+
+/* documentos */
+#doc-contenido { display: flex; flex-direction: column; gap: 10px; }
+.doc-instalar { display: flex; align-items: center; gap: 12px; }
+.doc-instalar .circulo { width: 38px; height: 38px; flex: none; border-radius: 19px; display: grid; place-items: center; background: var(--contenedor-alto); }
+.doc-instalar .texto { flex: 1; min-width: 0; }
+.doc-instalar strong { font-weight: 500; font-size: 13px; }
+.doc-instalar p { margin: 3px 0 0; font-size: 11px; color: var(--texto-var); line-height: 1.4; }
+.doc-formatos { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.doc-formatos .mod-chip { border: 0; cursor: pointer; font: inherit; font-size: 12px; }
+.doc-soltar { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 22px 14px;
+  border: 2px dashed var(--contorno-var); border-radius: var(--redondeo); background: var(--contenedor); transition: border-color .2s, background .2s; }
+.doc-soltar > .icono { font-size: 34px; color: var(--primario); }
+.doc-soltar strong { font-weight: 500; font-size: 13px; }
+.doc-soltar.encima { border-color: var(--primario); background: color-mix(in srgb, var(--primario) 10%, var(--contenedor)); }
+.doc-botones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.doc-botones .icono { font-size: 17px; vertical-align: -4px; }
+.doc-cabeza { display: flex; align-items: center; gap: 6px; }
+.doc-cabeza h3 { margin: 0; }
+.doc-lista { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.doc-fila { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; }
+.doc-fila.e-listo { cursor: pointer; }
+.doc-fila.e-listo:hover { background: var(--contenedor-alto); }
+.doc-fila .texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.doc-fila strong { font-weight: 500; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-fila small { font-size: 10px; color: var(--texto-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-fila.e-error small, .doc-fila.e-error > .icono { color: var(--error); }
+.doc-fila.e-listo > .icono { color: var(--primario); }
