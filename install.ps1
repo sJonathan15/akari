@@ -35,8 +35,9 @@ function Preguntar($es, $en) {
 $Local = $env:LOCALAPPDATA
 $App = Join-Path $Local 'Programs\akari'
 $AppExe = Join-Path $App 'akari.exe'
-$AppPython = Join-Path $App 'resources\python\python.exe'
-$AppAkari = Join-Path $App 'resources\akari\bin\akari.py'
+# la app de Windows (escritorio/, Tauri): el servicio y su Python quedan junto al .exe
+$AppPython = Join-Path $App 'python\python.exe'
+$AppAkari = Join-Path $App 'servicio\bin\akari.py'
 $Codigo = Join-Path $Local 'akari'                       # instalación desde el código
 $Bin = Join-Path $Codigo 'bin'
 $Inicio = Join-Path ([Environment]::GetFolderPath('Startup')) 'akari.lnk'
@@ -72,8 +73,10 @@ if ($Desinstalar) {
   Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like '*akari.py*servicio*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-  $desinstalador = Join-Path $App 'Uninstall akari.exe'
-  if (Test-Path $desinstalador) { Start-Process -Wait $desinstalador -ArgumentList '/S' }
+  foreach ($nombre in 'uninstall.exe', 'Uninstall akari.exe') {     # la app de ahora y la de Electron
+    $desinstalador = Join-Path $App $nombre
+    if (Test-Path $desinstalador) { Start-Process -Wait $desinstalador -ArgumentList '/S' }
+  }
   Remove-Item -Force $Inicio -ErrorAction SilentlyContinue
   Remove-Item -Recurse -Force $Codigo -ErrorAction SilentlyContinue
   Quitar-DelPath $Bin
