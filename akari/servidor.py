@@ -17,6 +17,9 @@ POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: i
 POST /api/asistente       {"accion", ...}           (preguntar, ajustes, voz… ver asistente.py y voz.py)
 POST /api/burbujas        {"abiertas": [...]}: la app de escritorio avisa qué hay abierto; sin nada → reposo
 POST /api/actualizacion   {"accion": "revisar"|"ahora-no"|"instalar"}   (versión nueva, ver actualizacion.py)
+POST /api/cerebro         {"accion", ...}           (mapa y memoria para la IA, ver cerebro.py)
+GET  /api/recorrido       el recorrido de bienvenida (también en /api/estado → "recorrido")
+POST /api/recorrido       {"accion": "siguiente"|"anterior"|"saltar"|"reiniciar"|"ir"|"voz"|"cerrar_primeros"}
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -37,6 +40,8 @@ from .ia import MonitorIA
 from .modelos import MonitorModelos
 from .documentos import Conversor
 from .audio import Transcriptor, es_audio
+from .cerebro import MonitorCerebro
+from .recorrido import Recorrido
 from .tema import Tema
 from .actualizacion import Revisor
 
@@ -45,7 +50,7 @@ MAX_SUBIDA = 200 * 2**20
 # La app de Windows (escritorio/) pide revisar como mucho cada 5 s y, si no hay nada abierto
 # (solo las cabeceras de las burbujas), bajar al ritmo de reposo: casi nada de CPU.
 MINIMO = float(os.environ.get("AKARI_INTERVALO_MIN") or 0)
-REPOSO = {"ia": 30, "dispositivos": 120, "habilidades": 120, "tema": 60, "modelos": 120, "herramientas": 120}
+REPOSO = {"ia": 30, "dispositivos": 120, "habilidades": 120, "tema": 60, "modelos": 120, "herramientas": 120, "cerebro": 120}
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript",
          ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json",
@@ -65,6 +70,8 @@ class Servicio:
         self.audio = Transcriptor(self.cambio, self.modelos)
         self.asistente = Asistente(self.cambio, self.modelos)
         self.asistente.voz = Voz(self.cambio, self.asistente)
+        self.cerebro = MonitorCerebro(self.cambio, self.modelos)
+        self.recorrido = Recorrido(self.cambio)
         self.tema = Tema()
         self.actualizacion = Revisor(self.cambio)
         self._tema = self.tema.valor
@@ -94,11 +101,14 @@ class Servicio:
         base = {"version": VERSION, "idioma": IDIOMA, "ahora": time.time(), "tema": self.tema.valor,
                 "sistema": "windows" if WINDOWS else "linux"}
         if DEMO:
-            return {**base, **demo.estado(), "demo": True}
-        return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-                "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
-                "herramientas": self.herramientas.estado, "asistente": self.asistente.estado,
-                "actualizacion": self.actualizacion.estado}
+            e = {**base, **demo.estado(), "demo": True}
+        else:
+            e = {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
+                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
+                 "herramientas": self.herramientas.estado, "asistente": self.asistente.estado,
+                 "actualizacion": self.actualizacion.estado, "cerebro": self.cerebro.estado}
+        e["recorrido"] = self.recorrido.estado(e)
+        return e
 
     def _bucle(self, paso, intervalo, reposo):
         while True:
@@ -112,7 +122,8 @@ class Servicio:
     def arrancar(self):
         for paso, intervalo, clave in ((self.ia.paso, 1, "ia"), (self.dispositivos.leer, 3, "dispositivos"),
                                        (self.habilidades.paso, 5, "habilidades"), (self.revisar_tema, 5, "tema"),
-                                       (self.modelos.paso, 10, "modelos"), (self.herramientas.paso, 5, "herramientas")):
+                                       (self.modelos.paso, 10, "modelos"), (self.herramientas.paso, 5, "herramientas"),
+                                       (self.cerebro.paso, 20, "cerebro")):
             threading.Thread(target=self._bucle, args=(paso, intervalo, REPOSO[clave]), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
         self.asistente.voz.revisar()        # si quedó prendida la palabra clave, vuelve a escuchar
@@ -144,6 +155,8 @@ def crear_manejador(servicio):
                 return self._json(servicio.estado())
             if ruta == "/eventos":
                 return self._eventos()
+            if ruta == "/api/recorrido":
+                return self._json(servicio.estado()["recorrido"])
             if ruta == "/api/burbujas":       # ?todas=1: también las ocultas (el panel las muestra todas)
                 return self._json({**grupos.burbujas(todas="todas=1" in self.path), "reposo": servicio.reposo})
             base, carpeta = ("/modelos/", ESTATICOS["/modelos/"]) if ruta.startswith("/modelos/") else ("/", ESTATICOS["/"])
@@ -191,6 +204,13 @@ def crear_manejador(servicio):
             if ruta == "/api/herramientas":
                 ok, mensaje = servicio.herramientas.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
+            if ruta == "/api/cerebro":
+                if datos.get("accion") == "pregunta":
+                    servicio.recorrido.marcar("pregunta")
+                return self._json(demo.cerebro_accion(datos) if DEMO else servicio.cerebro.accion(datos))
+            if ruta == "/api/recorrido":
+                ok, mensaje = servicio.recorrido.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje, "recorrido": servicio.estado()["recorrido"]})
             if ruta == "/api/audio":
                 ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})

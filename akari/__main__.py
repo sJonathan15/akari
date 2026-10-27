@@ -7,6 +7,8 @@
   akari estado         resumen en la terminal
   akari guia           cómo se usa akari en tu escritorio
   akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o app)
+  akari cerebro …      el mapa de tu computadora y la memoria de tus sesiones (akari cerebro ayuda)
+  akari recorrido      vuelve a mostrar el recorrido de bienvenida
   akari conectar-claude / desconectar-claude   línea de estado de Claude Code
   akari statusline     línea de estado para Claude Code (la configura el instalador)
   akari actualizar [--version X] [--forzar]   instala la versión nueva (tu configuración se queda)
@@ -352,6 +354,23 @@ def resumen():
     return 0
 
 
+def recorrido():
+    """Vuelve a mostrar el recorrido de bienvenida en las cápsulas / burbujas (o en el panel, en GNOME)."""
+    if not arrancar_servicio():
+        print(t("El servicio no respondió: akari arrancar", "The service did not answer: akari arrancar"))
+        return 1
+    req = urllib.request.Request(f"http://127.0.0.1:{PUERTO}/api/recorrido", data=b'{"accion": "reiniciar"}',
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        json.load(r)
+    if interfaz_elegida() == "gnome":
+        abrir()
+    else:
+        arrancar()
+    print(t("Recorrido de bienvenida en marcha: mira las cápsulas de arriba.", "Welcome tour started: look at the capsules at the top."))
+    return 0
+
+
 def main():
     # la consola de Windows usa cp1252 / cp850: sin esto, "→", "★" o "✓" la hacen fallar
     for flujo in (sys.stdout, sys.stderr):
@@ -379,6 +398,11 @@ def main():
         print(conectar_claude(sys.argv[2] if len(sys.argv) > 2 else None) if orden == "conectar-claude" else desconectar_claude())
     elif orden == "estado":
         sys.exit(resumen())
+    elif orden in ("recorrido", "tour"):
+        sys.exit(recorrido())
+    elif orden in ("cerebro", "brain"):
+        from .cerebro import main as cerebro
+        sys.exit(cerebro(sys.argv[2:]))
     elif orden in ("guia", "guía", "guide"):
         guia(sys.argv[2] if len(sys.argv) > 2 else None)
     elif orden == "escritorio":

@@ -8,12 +8,12 @@ const params = new URLSearchParams(location.search);
 const vista = params.get("vista");
 // la sección del panel de cada pieza
 const PIEZAS = { dispositivos: "p-disp", asistente: "p-asis", uso: "p-ia", modelos: "p-modelos", habilidades: "p-hab", herramientas: "p-herr",
-  documentos: "p-doc", audio: "p-audio" };
+  documentos: "p-doc", audio: "p-audio", cerebro: "p-cerebro" };
 // copia de akari/grupos.py para el primer dibujo; se reemplaza con GET /api/burbujas
 let GRUPOS = [
   { id: "equipo", piezas: [{ id: "dispositivos", icono: "devices", chip: 254 }] },
   { id: "ia", piezas: [{ id: "asistente", icono: "chat", chip: 48 }, { id: "uso", icono: "bolt", chip: 92 }, { id: "modelos", icono: "psychology", chip: 44 }, { id: "habilidades", icono: "auto_awesome", chip: 58 }, { id: "herramientas", icono: "construction", chip: 64 }] },
-  { id: "archivos", piezas: [{ id: "documentos", icono: "swap_horiz", chip: 58 }, { id: "audio", icono: "graphic_eq", chip: 72 }] },
+  { id: "archivos", piezas: [{ id: "documentos", icono: "swap_horiz", chip: 58 }, { id: "audio", icono: "graphic_eq", chip: 72 }, { id: "cerebro", icono: "neurology", chip: 70 }] },
 ];
 // burbuja: el grupo; c= de antes (una burbuja por función) sigue andando
 const pedida = params.get("c");
@@ -223,14 +223,27 @@ function dibujarModelos() {
         <p>${esc(r.nota)}</p><small style="color:${VAR(color)}">${icono(ic)} ${t(es, en)}</small></div>${boton}</div>`;
     };
     const catalogo = new Set(M.recomendados.map((r) => r.id));
-    const otros = O.modelos.filter((m) => !catalogo.has(m.nombre) && !catalogo.has(m.nombre.replace(/:latest$/, "")));
+    const otros = O.modelos.filter((m) => !m.embeddings && !catalogo.has(m.nombre) && !catalogo.has(m.nombre.replace(/:latest$/, "")));
+    // el chico busca y el otro conversa: el modelo de embeddings para el cerebro
+    const filaEmbed = (r) => {
+      const bajando = d && d.modelo === r.id && !d.error && d.pct < 100;
+      const boton = r.instalado ? `<button class="listo" disabled>${icono("check")}</button>`
+        : bajando ? `<span class="mod-barra"><b style="width:${d.pct}%"></b><i>${d.pct}%</i></span>`
+        : O.estado === "no_instalado" ? "" : `<button class="boton${r.sugerido ? " principal" : ""}" data-mod="descargar" data-usar="no" data-modelo="${esc(r.id)}">${t("Descargar", "Download")} · ${r.gb} GB</button>`;
+      return `<div class="mod-fila"><span class="circulo">${icono("travel_explore", r.instalado)}</span><div class="texto"><strong>${esc(r.id)}${r.sugerido ? ` <span class="mod-sugerido">${t("recomendado", "recommended")}</span>` : ""}</strong>
+        <p>${esc(r.nota)}</p></div>${boton}</div>`;
+    };
+    const pa = M.para_archivos;
+    const buscarEn = (M.embeddings || []).length ? `<h3 style="margin-top:14px">${t("Para buscar en tu cerebro", "To search your brain")}</h3>
+      ${pa ? `<p class="tenue chico">${icono("travel_explore")} ${t("Para buscar y abrir archivos: ", "To find and open files: ")}<b>${esc(pa.buscar)}</b> ${t("(buscar)", "(search)")}${pa.conversar ? ` + <b>${esc(pa.conversar)}</b> ${t("(conversar)", "(chat)")}` : ""}</p>` : ""}
+      <div class="mod-lista">${M.embeddings.map(filaEmbed).join("")}</div>` : "";
     cuerpo = `<p class="tenue chico">${t("Tu equipo: ", "Your computer: ")}${eq.ram_gb} GB ${t("de RAM", "RAM")}${gpu}</p>${ollama}
       ${d && d.error ? `<p class="error chico">${esc(d.modelo)}: ${esc(d.error)}</p>` : ""}
       <div class="mod-lista">${M.recomendados.map(fila).join("")}</div>
       ${otros.length ? `<p class="tenue chico">${t("Otros modelos que ya tienes:", "Other models you have:")}</p><div class="mod-chips">${otros.map((m) => {
         const tipo = m.vision ? "vision" : "texto", uso = M.local[tipo] === m.nombre;
         return `<button class="mod-chip${uso ? " ok" : ""}" data-mod="usar" data-modelo="${esc(m.nombre)}" data-tipo="${tipo}">${icono(m.vision ? "visibility" : "chat")}${esc(m.nombre)}</button>`;
-      }).join("")}</div>` : ""}`;
+      }).join("")}</div>` : ""}${buscarEn}`;
   } else {
     const prov = (p) => {
       const activo = M.modo === "api" && M.proveedor === p.id;
@@ -585,6 +598,157 @@ function htmlAudio() {
       <div class="doc-lista">${A.trabajos.slice(0, 12).map(fila).join("")}</div></div>` : ""}`;
 }
 
+// ------------------------------------------------------------------ cerebro
+// El mapa de la computadora y la memoria de las sesiones (akari/cerebro.py). Nunca mueve ni cambia
+// archivos. La primera vez: qué recorre, qué nunca mira, privacidad y «Crear mi cerebro». Después:
+// estado, cifras, buscador (Abrir / Mostrar en carpeta), «En qué quedamos» y botones.
+const ICONO_TIPO = { carpeta: "folder", documento: "description", hoja: "table_chart", presentacion: "slideshow", imagen: "image",
+  audio: "music_note", video: "movie", codigo: "code", area: "folder_special", proyecto: "inventory_2", sesion: "history",
+  nota: "sticky_note_2", texto: "article", comprimido: "folder_zip", programa: "apps" };
+const AGENTE = (a) => (a === "claude" ? "Claude Code" : a === "codex" ? "Codex" : a === "panel" ? t("este panel", "this panel") : a === "akari" ? t("el asistente", "the assistant") : a);
+function cuandoDia(ts) {
+  if (!ts) return "—";
+  const dias = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ts * 1000).setHours(0, 0, 0, 0)) / 86400000);
+  if (dias <= 0) return t("hoy", "today");
+  if (dias === 1) return t("ayer", "yesterday");
+  if (dias < 7) return new Date(ts * 1000).toLocaleDateString(idioma, { weekday: "long" });
+  return new Date(ts * 1000).toLocaleDateString(idioma, { day: "numeric", month: "short" });
+}
+const rutaCorta = (r) => String(r || "").replace(/^\/home\/[^/]+|^[A-Za-z]:\\Users\\[^\\]+/, "~");
+let cerDibujado = "";
+function dibujarCerebro() {
+  const C = E.cerebro;
+  const caja = $("#cer-contenido");
+  if (!caja || !C) return;
+  if (caja.contains(document.activeElement) && document.activeElement.matches("input")) return;
+  const listo = C.configurado && !ui.cerConfig;
+  $("#cer-buscador").hidden = !listo;
+  $("#cer-memoria").hidden = !listo;
+  const html = listo ? htmlCerebro(C) : htmlCerebroPrimera(C);
+  if (html !== cerDibujado) { cerDibujado = html; caja.innerHTML = html; }
+  const mem = listo ? htmlCerebroMemoria(C) : "";
+  if ($("#cer-memoria").dataset.html !== mem) { $("#cer-memoria").dataset.html = mem; $("#cer-memoria").innerHTML = mem; }
+}
+function htmlCerebroPrimera(C) {
+  if (!ui.cerSel) ui.cerSel = new Set(C.carpetas.length ? C.carpetas : C.candidatas.filter((x) => x.tipo === "personal").map((x) => x.ruta));
+  const carpetas = C.candidatas.map((x) => `<label class="cer-carpeta"><input type="checkbox" data-cer-sel="${esc(x.ruta)}" ${ui.cerSel.has(x.ruta) ? "checked" : ""}>
+      ${icono(x.tipo === "disco" ? "hard_drive" : x.tipo === "personal" ? "home" : "folder")}<span><strong>${esc(x.nombre)}</strong><small class="mono tenue">${esc(x.ruta)}</small></span></label>`).join("");
+  return `<div class="tarjeta cer-primera"><span class="circulo grande">${icono("neurology", true)}</span>
+      <h3>${t("Tu cerebro", "Your brain")}</h3>
+      <p class="cer-promesa">${t("No mueve, renombra ni cambia tus archivos.", "It never moves, renames or changes your files.")}</p>
+      <p class="tenue">${t("Solo mira sus nombres y arma un mapa (una bóveda de Obsidian) para que tu IA los encuentre y recuerde en qué quedaron.", "It only looks at their names and builds a map (an Obsidian vault) so your AI finds them and remembers where you left off.")}</p>
+      <h4>${t("Qué voy a recorrer", "What I'll go through")}</h4><div class="cer-carpetas">${carpetas}</div>
+      <button class="enlace" data-cer="elegir" data-para="mapa" ${C.eligiendo ? "disabled" : ""}>${icono("create_new_folder")}${t("Agregar otra carpeta…", "Add another folder…")}</button>
+      <h4>${t("Lo que nunca miro", "What I never look at")}</h4><ul class="cer-fuera">${C.excluido.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      <h4>${t("Privacidad", "Privacy")}</h4>
+      <p class="tenue chico">${t("Todo queda en tu equipo: el índice, la bóveda y la memoria.", "Everything stays on your computer: the index, the vault and the memory.")}
+        ${C.modelo_api ? t(" Tu modelo de IA es por API: solo si lo permites, para cada pregunta se le manda lo mínimo (nombres, rutas y fragmentos encontrados), nunca el índice entero.", " Your AI model is an API: only if you allow it, each question sends the minimum (names, paths and found snippets), never the whole index.") : ""}</p>
+      ${C.modelo_api ? `<label class="cer-carpeta"><input type="checkbox" id="cer-api" ${C.permitir_api ? "checked" : ""}><span>${t("Permitir que el modelo por API vea nombres y rutas", "Allow the API model to see names and paths")}</span></label>` : ""}
+      <h4>${t("Dónde queda la bóveda", "Where the vault goes")}</h4>
+      <p class="mono chico">${esc(C.boveda)} <button class="enlace" data-cer="elegir" data-para="boveda">${t("Cambiar…", "Change…")}</button></p>
+      ${C.mensaje ? `<p class="chico error">${esc(C.mensaje)}</p>` : ""}${ui.cerRespuesta ? `<p class="chico mod-respuesta">${esc(ui.cerRespuesta)}</p>` : ""}
+      <div class="botones"><button class="boton principal" data-cer="crear">${icono("neurology")} ${C.configurado ? t("Guardar", "Save") : t("Crear mi cerebro", "Create my brain")}</button>
+        ${C.configurado ? `<button class="boton" data-cer="volver">${t("Cancelar", "Cancel")}</button>` : ""}</div></div>`;
+}
+function htmlCerebro(C) {
+  const c = C.cifras || {};
+  const salud = { sano: ["check_circle", t("Sano", "Healthy"), "--exito"], revisando: ["sync", t("Revisando…", "Checking…"), "--primario"],
+    atencion: ["error", t("Hay que revisarlo", "Needs a check"), "--terciario"] }[C.salud] || ["help", C.salud, "--contorno"];
+  const usos = Object.entries(c.uso || {}).filter(([k]) => k !== "panel").sort((a, b) => b[1].t - a[1].t);
+  const S = C.semantica || {};
+  const cifra = (n, es, en) => `<div><b>${corto(n || 0)}</b><small>${t(es, en)}</small></div>`;
+  return `<div class="tarjeta cer-estado"><div class="doc-cabeza">${icono(salud[0], true).replace('class="icono', `style="color:var(${salud[2]})" class="icono${C.salud === "revisando" ? " girando" : ""}`)}
+      <strong>${salud[1]}</strong><span class="tenue chico">${C.salud === "revisando" && C.progreso ? corto(C.progreso.archivos) + " · " + esc(rutaCorta(C.progreso.carpeta)) : c.ultima_revision ? t("revisado ", "checked ") + hace(ahora() - c.ultima_revision) : ""}</span></div>
+    <div class="cer-cifras">${cifra(c.archivos, "archivos", "files")}${cifra(c.proyectos, "proyectos", "projects")}${cifra(c.areas, "áreas", "areas")}${cifra(c.sesiones_hoy, "sesiones hoy", "sessions today")}</div>
+    <p class="tenue chico">${usos.length ? usos.map(([k, u]) => `${esc(AGENTE(k))} ${t("lo usó", "used it")} ${hace(ahora() - u.t)}`).join(" · ") : t("Ningún agente lo usó todavía: conéctalo con Claude Code o Codex.", "No agent has used it yet: connect Claude Code or Codex.")}</p>
+    <p class="tenue chico">${S.modelo ? `${icono("travel_explore")} ${t("Por significado", "By meaning")}: ${esc(S.modelo)} · ${corto(S.vectores)}${S.trabajando || S.faltan ? t(" · aprendiendo…", " · learning…") : ""}`
+      : `${t("Para buscar por significado, descarga un modelo chico en «Modelos de IA».", "To search by meaning, download a small model in “AI models”.")} <button class="enlace" data-ir="modelos">${t("Ver", "See")}</button>`}</p>
+    ${C.mensaje ? `<p class="chico error">${esc(C.mensaje)}</p>` : ""}${ui.cerRespuesta ? `<p class="chico mod-respuesta">${esc(ui.cerRespuesta)}</p>` : ""}
+    <div class="botones">
+      <button class="boton" data-cer="${C.obsidian ? "obsidian" : "obsidian_instalar"}">${icono("auto_stories")} ${C.obsidian ? t("Abrir en Obsidian", "Open in Obsidian") : t("Instalar Obsidian", "Install Obsidian")}</button>
+      <button class="boton" data-cer="revisar" ${C.salud === "revisando" ? "disabled" : ""}>${icono("sync")} ${t("Revisar ahora", "Check now")}</button>
+      <button class="boton" data-cer="${C.conectado.claude || C.conectado.codex ? "desconectar" : "conectar"}">${icono(C.conectado.claude || C.conectado.codex ? "link_off" : "link")} ${C.conectado.claude || C.conectado.codex
+        ? t("Desconectar de ", "Disconnect from ") + [C.conectado.claude && "Claude Code", C.conectado.codex && "Codex"].filter(Boolean).join(t(" y ", " & "))
+        : t("Conectar con Claude Code / Codex", "Connect Claude Code / Codex")}</button>
+      <button class="boton" data-cer="config">${icono("folder_managed")} ${t("Elegir carpetas", "Choose folders")}</button>
+      <button class="redondo" data-cer="carpeta_boveda" title="${t("Carpeta de la bóveda", "Vault folder")}">${icono("folder")}</button></div></div>`;
+}
+function htmlCerebroMemoria(C) {
+  if (!C.sesiones.length && !C.pendientes.length) return "";
+  return `<div class="tarjeta"><h3>${t("En qué quedamos", "Where we left off")}</h3>
+    ${C.sesiones.slice(0, 4).map((s) => `<div class="cer-sesion">${icono("history")}<div><small class="tenue">${esc(cuandoDia(s.fin))} · ${esc(AGENTE(s.agente))}${s.proyecto_nombre ? " · " + esc(s.proyecto_nombre) : ""}</small>
+      <p>${esc(s.resumen || s.titulo)}</p>${s.pendiente ? `<small class="cer-pend">${t("Pendiente: ", "To do: ")}${esc(s.pendiente)}</small>` : ""}</div></div>`).join("")}
+    ${C.pendientes.length ? `<h4>${t("Pendientes", "To-dos")}</h4>` + C.pendientes.map((p) => `<button class="cer-check" data-cer="hecho" data-id="${p.id}" title="${t("Marcar hecho", "Mark done")}">${icono("check_box_outline_blank")}<span>${esc(p.texto)}${p.proyecto_nombre ? ` <small class="tenue">· ${esc(p.proyecto_nombre)}</small>` : ""}</span></button>`).join("") : ""}</div>`;
+}
+function dibujarResultados() {
+  const caja = $("#cer-resultados");
+  if (!caja) return;
+  if (ui.cerPregunta) { caja.innerHTML = `<div class="tarjeta cer-respuesta">${icono("neurology", true)}<p>${esc(ui.cerPregunta)}</p></div>`; return; }
+  const r = ui.cerRes || [];
+  caja.innerHTML = !r.length ? (ui.cerQ ? `<p class="tenue chico">${t("Nada con ese nombre. Prueba «Preguntar».", "Nothing by that name. Try “Ask”.")}</p>` : "")
+    : `<div class="tarjeta doc-lista">${r.map((x) => `<div class="doc-fila cer-fila">${icono(ICONO_TIPO[x.tipo] || "draft")}
+      <div class="texto"><strong>${esc(x.nombre)}</strong><small class="mono">${esc(rutaCorta(x.carpeta || x.ruta))}${x.mtime ? " · " + esc(cuandoDia(x.mtime)) : ""}${x.via === "significado" ? " · ~" : ""}</small></div>
+      <button class="redondo" data-cer="abrir" data-ruta="${esc(x.ruta)}" title="${t("Abrir", "Open")}">${icono("open_in_new")}</button>
+      <button class="redondo" data-cer="abrir" data-ruta="${esc(x.ruta)}" data-carpeta="1" title="${t("Mostrar en carpeta", "Show in folder")}">${icono("folder_open")}</button></div>`).join("")}</div>`;
+}
+let cerEspera = null;
+async function cerBuscar(q) {
+  ui.cerQ = q;
+  ui.cerPregunta = "";
+  const r = q.trim() ? await enviar("/api/cerebro", { accion: "buscar", q }) : { resultados: [] };
+  if (ui.cerQ !== q) return;
+  ui.cerRes = r.resultados || [];
+  dibujarResultados();
+}
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "cer-q") return;
+  clearTimeout(cerEspera);
+  cerEspera = setTimeout(() => cerBuscar(e.target.value), 200);
+});
+document.addEventListener("submit", (e) => {
+  if (e.target.id !== "cer-form") return;
+  e.preventDefault();
+  cerBuscar($("#cer-q").value);
+});
+async function cerAccion(b) {
+  const acc = b.dataset.cer;
+  if (acc === "config") { ui.cerConfig = true; ui.cerSel = null; cerDibujado = ""; return dibujar(); }
+  if (acc === "volver") { ui.cerConfig = false; cerDibujado = ""; return dibujar(); }
+  if (acc === "olvidar" && !confirm(t("¿Borrar el índice del cerebro? (la bóveda no se borra)", "Delete the brain index? (the vault stays)"))) return;
+  const cuerpo = { accion: acc };
+  if (acc === "crear") {
+    Object.assign(cuerpo, { accion: "configurar", carpetas: [...(ui.cerSel || [])] });
+    if ($("#cer-api")) cuerpo.permitir_api = $("#cer-api").checked;
+  }
+  if (b.dataset.ruta) cuerpo.ruta = b.dataset.ruta;
+  if (b.dataset.carpeta) cuerpo.carpeta = true;
+  if (b.dataset.para) cuerpo.para = b.dataset.para;
+  if (b.dataset.id) cuerpo.id = Number(b.dataset.id);
+  b.disabled = true;
+  const r = await enviar("/api/cerebro", cuerpo);
+  b.disabled = false;
+  ui.cerRespuesta = r.mensaje || (r.ok ? "" : t("No se pudo.", "It didn't work."));
+  if (acc === "crear" && r.ok) ui.cerConfig = false;
+  cerDibujado = "";
+  dibujar();
+}
+document.addEventListener("click", async (e) => {
+  const sel = e.target.closest && e.target.closest("[data-cer-sel]");
+  if (sel) { if (!ui.cerSel) ui.cerSel = new Set(); sel.checked ? ui.cerSel.add(sel.dataset.cerSel) : ui.cerSel.delete(sel.dataset.cerSel); cerDibujado = ""; return; }
+  if (e.target.closest && e.target.closest("#cer-preguntar")) {
+    const q = $("#cer-q").value.trim();
+    if (!q) return;
+    ui.cerPregunta = t("Pensando…", "Thinking…");
+    dibujarResultados();
+    const r = await enviar("/api/cerebro", { accion: "pregunta", texto: q });
+    ui.cerPregunta = r.respuesta || r.mensaje || t("No se pudo.", "It didn't work.");
+    dibujarResultados();
+    return;
+  }
+  const b = e.target.closest && e.target.closest("[data-cer]");
+  if (b) cerAccion(b);
+});
+
 async function subirDocumentos(archivos) {
   const D = E && E.documentos, A = E && E.audio;
   if (!D) return;
@@ -726,6 +890,14 @@ function htmlChip(id, ancho) {
     const ultimo = D && D.trabajos[0];
     return `${ic}<span class="tenue chico">${!D ? "—" : !D.listo ? t("Conversor sin instalar", "Converter not installed") : activos ? t("Convirtiendo ", "Converting ") + activos + "…" : ultimo ? esc(ultimo.nombre) : t("Suelta un documento", "Drop a document")}</span>`;
   }
+  if (id === "cerebro") {
+    const C = E.cerebro;
+    const listo = C && C.configurado;
+    const color = !listo || C.salud === "atencion" ? "var(--terciario)" : "var(--primario)";
+    const ic = icono("neurology", !!listo).replace('class="icono', `style="color:${color}" class="icono b-estrella${listo && C.salud === "revisando" ? " late" : ""}`);
+    if (!ancho) return `${ic}<span class="b-num${listo ? "" : " chico"}">${!C ? "—" : listo ? corto(C.cifras.archivos) : t("crear", "set up")}</span>`;
+    return `${ic}<span class="tenue chico">${!C ? "—" : !listo ? t("Crea tu cerebro", "Create your brain") : `${corto(C.cifras.archivos)} ${t("archivos", "files")} · ${C.cifras.proyectos} ${t("proyectos", "projects")}`}</span>`;
+  }
   if (id === "audio") {
     const A = E.audio;
     if (A && A.grabacion.desde) return `${icono("radio_button_checked", true).replace('class="icono', 'class="icono late" style="color:var(--error)"')}
@@ -771,13 +943,101 @@ function dibujar() {
     document.documentElement.style.visibility = E.asistente && E.asistente.ocultar ? "hidden" : "";
     dibujarCabecera();
   } else dibujarActualizacion();
-  const dibujos = { dispositivos: dibujarDisp, asistente: dibujarAsistente, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio };
+  dibujarRecorrido();
+  const dibujos = { dispositivos: dibujarDisp, asistente: dibujarAsistente, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio, cerebro: dibujarCerebro };
   if (dibujos[ui.pagina]) dibujos[ui.pagina]();
+  resaltar();
 }
+
+// ------------------------------------------------------------------ recorrido de bienvenida
+// El estado vive en el servicio (akari/recorrido.py). La burbuja del grupo del paso se abre sola, va a
+// la pieza y muestra la tarjeta arriba; el control del que se habla queda resaltado. En el panel, la
+// tarjeta va arriba y además la lista «Primeros pasos».
+let recVisto = "", recAbrio = false, recRespuesta = "", recDibujado = "", primerosDibujado = "";
+const recorridoAqui = () => !!(E && E.recorrido && E.recorrido.activo && (!burbuja || E.recorrido.paso.grupo === burbuja)
+  && piezasDe(burbuja || grupoDePieza(E.recorrido.paso.pieza)).some((p) => p.id === E.recorrido.paso.pieza));
+function dibujarRecorrido() {
+  const R = E.recorrido, caja = $("#recorrido");
+  if (!caja || !R) return;
+  if (!burbuja) dibujarPrimeros(R.activo ? null : R.primeros);
+  if (!recorridoAqui()) {
+    caja.hidden = true;
+    recDibujado = "";
+    if (burbuja && recAbrio && window.akari) window.akari.burbuja("cerrar");
+    recAbrio = false;
+    recVisto = "";
+    return;
+  }
+  const P = R.paso, clave = `${P.id}:${R.n}`;
+  if (clave !== recVisto) {
+    recVisto = clave;
+    recRespuesta = "";
+    if (burbuja && window.akari) { window.akari.burbuja("abrir"); recAbrio = true; }
+    if (PIEZAS[P.pieza] && ui.pagina !== P.pieza) { mostrarPieza(P.pieza); return; }     // mostrarPieza vuelve a dibujar
+  }
+  const acciones = (P.acciones || []).map((a, i) => `<button class="boton${a.principal ? " principal" : ""}" data-rec-acc="${i}">${esc(a.texto)}</button>`).join("");
+  const html = `<div class="tarjeta rec"><div class="rec-cab"><span class="rec-n">${t(`${R.n} de ${R.total}`, `${R.n} of ${R.total}`)}</span><span class="b-relleno"></span>
+      ${R.voz_disponible ? `<span class="tenue chico">${t("Leérmelo en voz alta", "Read it aloud")}</span><button class="interruptor ${R.voz ? "on" : ""}" data-rec="voz" aria-label="voz"></button>` : ""}
+      <button class="enlace" data-rec="saltar">${t("Saltar", "Skip")}</button></div>
+    <strong class="rec-titulo">${esc(P.titulo)}</strong><p>${esc(P.texto)}</p>
+    ${acciones ? `<div class="botones">${acciones}</div>` : ""}${recRespuesta ? `<p class="chico mod-respuesta">${esc(recRespuesta)}</p>` : ""}
+    <div class="botones rec-pie"><button class="boton" data-rec="anterior" ${R.n === 1 ? "disabled" : ""}>${icono("arrow_back")} ${t("Anterior", "Back")}</button>
+      <button class="boton principal" data-rec="siguiente">${R.n === R.total ? t("Terminar", "Finish") : t("Siguiente", "Next")} ${icono("arrow_forward")}</button></div></div>`;
+  caja.hidden = false;
+  if (burbuja && caja.parentElement !== $("#b-contenido")) $("#b-contenido").prepend(caja);
+  if (html !== recDibujado) { recDibujado = html; caja.innerHTML = html; }
+}
+function dibujarPrimeros(lista) {
+  const caja = $("#primeros");
+  if (!caja) return;
+  const html = !lista ? "" : `<div class="tarjeta primeros"><div class="rec-cab"><strong>${t("Primeros pasos", "First steps")}</strong><span class="b-relleno"></span>
+    <button class="redondo" data-rec="cerrar_primeros" title="${t("Cerrar", "Close")}">${icono("close")}</button></div>
+    ${lista.map((x) => `<button class="cer-check${x.hecho ? " hecho" : ""}" data-ir-pieza="${x.pieza}">${icono(x.hecho ? "check_circle" : "radio_button_unchecked", x.hecho)}<span>${esc(x.texto)}</span></button>`).join("")}</div>`;
+  caja.hidden = !html;
+  if (html !== primerosDibujado) { primerosDibujado = html; caja.innerHTML = html; }
+}
+function resaltar() {
+  document.querySelectorAll(".resaltado").forEach((el) => el.classList.remove("resaltado"));
+  if (!recorridoAqui()) return;
+  const sel = E.recorrido.paso.resalta;
+  const el = sel === "cabecera" ? (burbuja ? $("#b-cabecera") : $(".cabecera")) : sel ? document.querySelector(`#${PIEZAS[ui.pagina]} ${sel}`) : null;
+  if (el) el.classList.add("resaltado");
+}
+async function recAccion(b) {
+  const R = E.recorrido;
+  if (b.dataset.recAcc !== undefined) {
+    const a = R.paso.acciones[Number(b.dataset.recAcc)];
+    const boton = a.pulsar && document.querySelector(`#${PIEZAS[ui.pagina]} ${a.pulsar}`);
+    if (boton) { boton.click(); return; }                         // p. ej. «Crear mi cerebro» con las carpetas elegidas
+    if (a.pieza) {
+      if (a.pestana) { ui.modPestana = a.pestana; modelosDibujado = ""; }
+      if (piezasDe(burbuja || grupoDePieza(a.pieza)).some((p) => p.id === a.pieza)) mostrarPieza(a.pieza);
+      return dibujar();
+    }
+    b.disabled = true;
+    const r = await enviar(a.ruta, a.cuerpo);
+    recRespuesta = r.mensaje || (r.ok ? t("Listo, sigue en marcha.", "Done, it's on its way.") : t("No se pudo.", "It didn't work."));
+    recDibujado = "";
+    return dibujar();
+  }
+  const acc = b.dataset.rec;
+  const cuerpo = { accion: acc };
+  if (acc === "voz") cuerpo.activo = !R.voz;
+  const r = await enviar("/api/recorrido", cuerpo);
+  if (r.recorrido) { E.recorrido = r.recorrido; dibujar(); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-rec], [data-rec-acc], [data-ir-pieza], #ver-recorrido");
+  if (!b) return;
+  if (b.id === "ver-recorrido") { recVisto = ""; return enviar("/api/recorrido", { accion: "reiniciar" }).then((r) => { if (r.recorrido) { E.recorrido = r.recorrido; dibujar(); } }); }
+  if (b.dataset.irPieza) return PIEZAS[b.dataset.irPieza] && mostrarPieza(b.dataset.irPieza);
+  recAccion(b);
+});
 
 // ------------------------------------------------------------------ grupos y piezas
 const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], asistente: ["Asistente", "Assistant"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
-  habilidades: ["Habilidades", "Skills"], herramientas: ["Herramientas", "Tools"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"] };
+  habilidades: ["Habilidades", "Skills"], herramientas: ["Herramientas", "Tools"], documentos: ["Documentos", "Documents"], audio: ["Audio", "Audio"],
+  cerebro: ["Cerebro", "Brain"] };
 const nombrePieza = (id) => (NOMBRES[id] ? t(...NOMBRES[id]) : id);
 const grupoDe = (id) => GRUPOS.find((g) => g.id === id) || GRUPOS[0];
 const grupoDePieza = (pieza) => (GRUPOS.find((g) => g.piezas.some((p) => p.id === pieza)) || GRUPOS[0]).id;
@@ -825,6 +1085,14 @@ function traducir() {
   document.querySelectorAll("[data-t]").forEach((el) => {
     const [es, en] = el.dataset.t.split("|");
     el.textContent = t(es, en);
+  });
+  document.querySelectorAll("[data-t-title]").forEach((el) => {
+    const [es, en] = el.dataset.tTitle.split("|");
+    el.title = t(es, en);
+  });
+  document.querySelectorAll("[data-t-ph]").forEach((el) => {
+    const [es, en] = el.dataset.tPh.split("|");
+    el.placeholder = t(es, en);
   });
 }
 
@@ -913,7 +1181,7 @@ document.addEventListener("click", async (e) => {
     const acc = b.dataset.mod;
     const cuerpo = acc === "usar" ? { accion: "usar", modo: "local", modelo: b.dataset.modelo, tipo: b.dataset.tipo }
       : acc === "usar_api" ? { accion: "usar", modo: "api", proveedor: b.dataset.prov }
-      : { accion: acc, modelo: b.dataset.modelo, proveedor: b.dataset.prov, usar: true };
+      : { accion: acc, modelo: b.dataset.modelo, proveedor: b.dataset.prov, usar: b.dataset.usar !== "no" };
     if (acc === "borrar_clave" && !confirm(t("¿Quitar la clave de este equipo?", "Remove the key from this computer?"))) return;
     b.disabled = true;
     ui.modRespuesta = acc === "probar" || acc === "instalar_ollama" ? t("Un momento…", "One moment…") : "";
@@ -1033,7 +1301,7 @@ function iniciarBurbuja() {
   const reteniendo = () => document.activeElement && document.activeElement.matches("input") && forma.contains(document.activeElement);
   const programarCierre = () => {
     clearTimeout(cierre);
-    cierre = setTimeout(() => { if (!fijada && !reteniendo() && !forma.matches(":hover")) enviar("cerrar"); }, 450);
+    cierre = setTimeout(() => { if (!fijada && !reteniendo() && !recorridoAqui() && !forma.matches(":hover")) enviar("cerrar"); }, 450);
   };
   forma.addEventListener("mouseenter", () => { clearTimeout(cierre); if (!arrastre) enviar("abrir"); });
   forma.addEventListener("mouseleave", programarCierre);

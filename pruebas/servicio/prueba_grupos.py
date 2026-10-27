@@ -31,7 +31,7 @@ class Grupos(unittest.TestCase):
         self.assertEqual(len(grupos.GRUPO_DE), sum(len(g["piezas"]) for g in grupos.GRUPOS))   # cada pieza en un solo grupo
 
     def test_ocultar_piezas_y_grupos(self):
-        ocultar(["audio", "equipo"])
+        ocultar(["audio", "cerebro", "equipo"])
         b = grupos.burbujas()
         self.assertEqual([g["id"] for g in b["grupos"]], ["ia", "archivos"])
         archivos = b["grupos"][1]
@@ -42,7 +42,7 @@ class Grupos(unittest.TestCase):
         self.assertEqual(len(grupos.burbujas(todas=True)["grupos"]), 3)
 
     def test_grupo_sin_piezas_no_aparece(self):
-        ocultar(["documentos", "audio"])
+        ocultar(["documentos", "audio", "cerebro"])
         self.assertNotIn("archivos", [g["id"] for g in grupos.burbujas()["grupos"]])
 
     def test_las_capsulas_tienen_las_mismas_piezas(self):

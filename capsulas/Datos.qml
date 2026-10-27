@@ -19,6 +19,7 @@ Singleton {
     readonly property var asistente: estado ? estado.asistente : null
     // mientras el asistente trabaja se pregunta más seguido (p. ej. para esconderse antes de mirar la pantalla)
     readonly property bool rapido: !!asistente && ["pensando", "oyendo", "confirmando", "hablando"].includes(asistente.estado)
+    readonly property var cerebro: estado ? estado.cerebro : null
 
     function actualizar() {
         const x = new XMLHttpRequest();

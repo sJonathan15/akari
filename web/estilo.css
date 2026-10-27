@@ -417,3 +417,48 @@ svg.muneco { display: block; }
 .actualizacion b { color: var(--primario); }
 .actualizacion .botones { margin-top: 6px; }
 .actualizacion a.boton { text-decoration: none; }
+
+/* ---------------------------------------------------------------- cerebro */
+.cer-primera { display: flex; flex-direction: column; gap: 6px; }
+.cer-primera h4, #cer-memoria h4 { margin: 10px 0 2px; font-size: 11px; font-weight: 500; color: var(--texto-var); text-transform: uppercase; letter-spacing: 0.6px; }
+.cer-primera .circulo.grande { width: 44px; height: 44px; border-radius: 22px; background: var(--primario); color: var(--sobre-primario); display: grid; place-items: center; }
+.cer-promesa { font-size: 17px; font-weight: 500; color: var(--primario); margin: 4px 0; line-height: 1.3; }
+.cer-carpetas { display: flex; flex-direction: column; gap: 4px; }
+.cer-carpeta { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--contenedor-alto); cursor: pointer; }
+.cer-carpeta span { display: flex; flex-direction: column; min-width: 0; }
+.cer-carpeta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.cer-carpeta input { accent-color: var(--primario); }
+.cer-fuera { margin: 0; padding-left: 18px; font-size: 11px; color: var(--texto-var); line-height: 1.5; }
+.cer-cifras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+.cer-cifras div { background: var(--contenedor-alto); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
+.cer-cifras b { font-size: 17px; font-weight: 500; }
+.cer-cifras small { font-size: 10px; color: var(--texto-var); }
+.cer-estado .doc-cabeza { gap: 8px; }
+.cer-campo { margin: 0; gap: 8px; }
+.cer-campo > .icono { color: var(--texto-var); }
+.cer-fila { cursor: default; }
+.cer-fila > .icono { color: var(--primario); }
+.cer-respuesta { display: flex; gap: 10px; align-items: flex-start; }
+.cer-respuesta p { margin: 0; white-space: pre-wrap; line-height: 1.45; font-size: 12px; }
+.cer-respuesta .icono { color: var(--primario); }
+.cer-sesion { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+.cer-sesion p { margin: 1px 0; font-size: 12px; line-height: 1.4; }
+.cer-sesion > .icono { color: var(--texto-var); margin-top: 2px; }
+.cer-pend { color: var(--terciario); font-size: 11px; }
+.cer-check { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 4px 2px; font-size: 12px; color: var(--texto); }
+.cer-check:hover .icono { color: var(--primario); }
+
+/* ---------------------------------------------------------------- recorrido de bienvenida */
+#recorrido, #primeros { padding: 0 14px; margin-bottom: 10px; }
+.vista-burbuja #recorrido { padding: 0 10px; margin: 0 0 8px; }
+.rec { border: 1.5px solid var(--primario); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primario) 14%, transparent); }
+.rec p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--texto-var); }
+.rec-cab { display: flex; align-items: center; gap: 8px; }
+.rec-n { font-size: 11px; font-weight: 500; color: var(--sobre-primario); background: var(--primario); border-radius: 10px; padding: 2px 9px; }
+.rec-titulo { display: block; margin-top: 10px; font-size: 15px; font-weight: 500; }
+.rec-pie { justify-content: space-between; }
+.primeros .cer-check.hecho { color: var(--texto-var); text-decoration: line-through; }
+.primeros .cer-check.hecho .icono { color: var(--exito); }
+.resaltado { outline: 2px solid var(--primario) !important; outline-offset: 3px; border-radius: 12px; animation: latir-resaltado 1.6s ease-in-out infinite; }
+@keyframes latir-resaltado { 50% { outline-color: color-mix(in srgb, var(--primario) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .resaltado { animation: none; } }

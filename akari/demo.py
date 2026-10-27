@@ -82,6 +82,7 @@ def estado():
                         "recomendadas": [tarjeta(e) for e in cat["recomendadas"]], "mas": [tarjeta(e) for e in cat["mas"]],
                         "mcp": [{"nombre": "context7", "agente": "claude"}, {"nombre": "playwright", "agente": "codex"}],
                         "usos_7d": 12, "total": 3, "recomendadas_instaladas": 3},
+        "cerebro": cerebro(),
     }
 
 
@@ -157,3 +158,72 @@ def _asistente(ahora):
                     "hablando": False},
             "historial": [{"t": ahora - hace, "pregunta": q, "respuesta": r, "quien": qn, "via": via, "herramientas": hs, "error": False}
                           for q, r, qn, via, hs, hace in historial]}
+
+
+# ---------------------------------------------------------------- cerebro (datos inventados)
+
+def _demo_ruta(*partes):
+    return "~/" + "/".join(partes)
+
+
+DEMO_ARCHIVOS = [
+    ("Documentos/Universidad/2026/Tesis/Informe de la tesis.docx", "documento", 2),
+    ("Documentos/Universidad/2026/Tesis/capitulo-3.md", "documento", 1),
+    ("Documentos/Universidad/2026/Tesis/bibliografia.bib", "otro", 5),
+    ("Descargas/CV-Alex-2026.pdf", "documento", 12),
+    ("Trabajo/Informes/ventas-octubre.xlsx", "hoja", 3),
+    ("Proyectos/tienda-web", "carpeta", 1),
+]
+
+
+def cerebro():
+    ahora = time.time()
+    sesiones = [
+        {"id": "claude:1", "agente": "claude", "fin": ahora - 20 * 3600, "titulo": "Capítulo 3 de la tesis",
+         "resumen": t("Se reescribió el capítulo 3 de la tesis con Claude.", "Rewrote chapter 3 of the thesis with Claude."),
+         "pendiente": t("la bibliografía", "the bibliography"), "proyecto_nombre": "Tesis"},
+        {"id": "codex:2", "agente": "codex", "fin": ahora - 3 * 3600, "titulo": "Carrito",
+         "resumen": t("Se arregló el carrito de la tienda web.", "Fixed the web store's cart."), "pendiente": "",
+         "proyecto_nombre": "tienda-web"},
+    ]
+    return {
+        "configurado": True, "salud": "sano", "mensaje": "", "boveda": "~/Cerebro",
+        "carpetas": ["~", "/media/Datos"], "texto_en": ["~/Documentos/Universidad"],
+        "permitir_api": False, "modelo_api": False,
+        "candidatas": [{"ruta": "~", "nombre": t("Carpeta personal", "Home folder"), "tipo": "personal"},
+                       {"ruta": "/media/Datos", "nombre": "Datos", "tipo": "disco"}],
+        "excluido": [], "progreso": None, "eligiendo": False,
+        "cifras": {"archivos": 48213, "carpetas": 5120, "proyectos": 14, "areas": 6, "sesiones_hoy": 3, "sesiones": 128,
+                   "pendientes": 2, "ultima_revision": ahora - 2 * 3600, "duracion": 41.2, "cortada": False,
+                   "uso": {"claude": {"t": ahora - 1800, "hoy": 7}, "codex": {"t": ahora - 3 * 3600, "hoy": 2}}},
+        "conectado": {"claude": True, "codex": True, "claude_instalado": True, "codex_instalado": True},
+        "obsidian": True,
+        "semantica": {"modelo": "embeddinggemma:300m", "listo": True, "vectores": 20000, "trabajando": False, "faltan": 0,
+                      "error": "", "texto_en": ["~/Documentos/Universidad"]},
+        "sesiones": sesiones,
+        "pendientes": [{"id": 1, "texto": t("Agregar la bibliografía", "Add the bibliography"), "proyecto_nombre": "Tesis"},
+                       {"id": 2, "texto": t("Enviar el CV actualizado", "Send the updated CV"), "proyecto_nombre": ""}],
+    }
+
+
+def cerebro_accion(datos):
+    """Respuestas de ejemplo para POST /api/cerebro en modo demo (no toca nada)."""
+    accion = datos.get("accion")
+    ahora = time.time()
+    if accion == "buscar":
+        q = str(datos.get("q") or "").lower()
+        hallados = [{"ruta": _demo_ruta(r), "nombre": r.split("/")[-1], "tipo": tipo, "tam": 48000,
+                     "mtime": ahora - dias * 86400, "carpeta": _demo_ruta(*r.split("/")[:-1]), "via": "nombre"}
+                    for r, tipo, dias in DEMO_ARCHIVOS if not q or any(p in r.lower() for p in q.split())]
+        return {"ok": True, "resultados": hallados or [{"ruta": _demo_ruta(DEMO_ARCHIVOS[0][0]), "nombre": "Informe de la tesis.docx",
+                                                        "tipo": "documento", "mtime": ahora - 2 * 86400, "via": "significado",
+                                                        "carpeta": _demo_ruta("Documentos/Universidad/2026/Tesis")}]}
+    if accion == "pregunta":
+        return {"ok": True, "respuesta": t("Está en ~/Documentos/Universidad/2026/Tesis/Informe de la tesis.docx. Ayer trabajaste "
+                                           "en el capítulo 3 con Claude; quedó pendiente la bibliografía.",
+                                           "It's in ~/Documentos/Universidad/2026/Tesis/Informe de la tesis.docx. Yesterday you "
+                                           "worked on chapter 3 with Claude; the bibliography is still to do.")}
+    if accion == "en_que_quedamos":
+        return {"ok": True, "texto": t("Ayer trabajaste (Tesis) con Claude Code: se reescribió el capítulo 3. Quedó pendiente: la bibliografía.",
+                                       "Yesterday you worked (Thesis) with Claude Code: chapter 3 was rewritten. Left to do: the bibliography.")}
+    return {"ok": True, "mensaje": t("(modo demo: no se cambió nada)", "(demo mode: nothing changed)")}

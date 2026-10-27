@@ -25,6 +25,7 @@ GRUPOS = [
      "altoMaximo": 760, "archivos": True, "piezas": [
          {"id": "documentos", "nombre": ("Documentos", "Documents"), "icono": "swap_horiz", "chip": 58},
          {"id": "audio", "nombre": ("Audio", "Audio"), "icono": "graphic_eq", "chip": 72},
+         {"id": "cerebro", "nombre": ("Cerebro", "Brain"), "icono": "neurology", "chip": 70},
      ]},
 ]
 GRUPO_DE = {p["id"]: g["id"] for g in GRUPOS for p in g["piezas"]}

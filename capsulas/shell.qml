@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 
 // akari: tres grupos de cápsulas que cuelgan del borde superior, cerca del centro (ver AGENTS.md):
-//   Equipo (izquierda) · IA (derecha) · Archivos (a la derecha de IA)
+//   Equipo (izquierda) · IA (derecha) · Archivos (a la derecha de IA: documentos, audio y cerebro)
 // Cada grupo es una píldora con un chip por pieza; se abre en la pieza que está bajo el puntero.
 // Se arrastran desde la cabecera a cualquier lugar; doble clic los devuelve a su sitio.
 // Para no mostrar piezas o grupos enteros (p. ej. si ya tienes otro widget igual), ponlos en
@@ -52,7 +52,7 @@ ShellRoot {
         }
     }
     LazyLoader {
-        active: raiz.visible("archivos", ["documentos", "audio"])
+        active: raiz.visible("archivos", ["documentos", "audio", "cerebro"])
         CapsulaGrupo {
             nombre: "archivos"
             lado: "derecha"
@@ -61,6 +61,7 @@ ShellRoot {
             ocultas: raiz.ocultas
             PiezaDocumentos {}
             PiezaAudio {}
+            PiezaCerebro {}
         }
     }
 }

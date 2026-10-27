@@ -64,6 +64,15 @@ CATALOGO = [
     {"id": "qwen3:14b", "gb": 9.3, "vision": False,
      "nota": ("Para equipos potentes: respuestas más completas.", "For powerful computers: fuller answers.")},
 ]
+# Modelos de embeddings (chicos, solo para buscar por significado en el cerebro). embeddinggemma entiende
+# más de 100 idiomas (bien en español); nomic-embed-text es más liviano, sobre todo en inglés.
+CATALOGO_EMBED = [
+    {"id": "embeddinggemma:300m", "gb": 0.6,
+     "nota": ("Para buscar en tu cerebro por significado: multilingüe, buen español.",
+              "To search your brain by meaning: multilingual.")},
+    {"id": "nomic-embed-text", "gb": 0.3,
+     "nota": ("Para buscar en tu cerebro: más liviano, mejor en inglés.", "To search your brain: lighter, best in English.")},
+]
 # un modelo cabe en la tarjeta de video si hay este margen sobre su tamaño (contexto, caché)
 MARGEN_GPU = 1.25
 MARGEN_RAM = 2.0       # en RAM además corren el sistema y las apps
@@ -202,21 +211,24 @@ class MonitorModelos:
     def leer_ollama(self):
         try:
             datos = _pedir(f"{OLLAMA}/api/tags", timeout=3)
-            modelos = [{"nombre": m["name"], "gb": round(m.get("size", 0) / 2**30, 1),
-                        "vision": self._ve(m["name"], m.get("digest", ""))} for m in datos.get("models", [])]
+            modelos = []
+            for m in datos.get("models", []):
+                cap = self._capacidades(m["name"], m.get("digest", ""))
+                modelos.append({"nombre": m["name"], "gb": round(m.get("size", 0) / 2**30, 1), "vision": "vision" in cap,
+                                "embeddings": "embedding" in cap or es_embebedor(m["name"])})
             self.ollama = {"estado": "activo", "modelos": modelos}
         except (OSError, ValueError):
             self.ollama = {"estado": "apagado" if tiene("ollama") else "no_instalado", "modelos": []}
 
-    def _ve(self, nombre, digest):
-        """¿El modelo instalado mira imágenes? (/api/show, una vez por versión del modelo)."""
+    def _capacidades(self, nombre, digest):
+        """Lo que sabe hacer el modelo instalado (vision, embedding…): /api/show, una vez por versión."""
         clave = f"{nombre}@{digest}"
         if clave not in self._vision:
             try:
                 info = _pedir(f"{OLLAMA}/api/show", {"model": nombre}, timeout=5)
-                self._vision[clave] = "vision" in info.get("capabilities", [])
+                self._vision[clave] = list(info.get("capabilities", []))
             except (OSError, ValueError):
-                return False
+                return []
         return self._vision[clave]
 
     # ------------------------------------------------------------ elegido
@@ -265,6 +277,19 @@ class MonitorModelos:
                 # en CPU, el más chico que sirve: un modelo grande en CPU tarda demasiado
                 elegido = mejor[-1] if mejor[0]["cabe"] == "gpu" else mejor[min(1, len(mejor) - 1)]
                 elegido["sugerido"] = "vision" if vision else "texto"
+        # el chico busca y el otro conversa: lo que conviene para «buscar y abrir archivos» en este equipo
+        embed = []
+        for m in CATALOGO_EMBED:
+            embed.append({"id": m["id"], "gb": m["gb"], "nota": t(*m["nota"]), "cabe": cabe(m["gb"], self.equipo),
+                          "instalado": self._instalado(m["id"])})
+        sugerido_embed = next((e for e in embed if e["instalado"]), None) or \
+            (embed[0] if self.equipo.get("ram_gb", 0) >= 6 or not self.equipo.get("ram_gb") else embed[1])
+        sugerido_embed["sugerido"] = True
+        conversa = next((r["id"] for r in recomendados if r.get("sugerido") == "texto"), None)
+        if a.get("modo") == "api" and a.get("modelo"):
+            conversa = a["modelo"]
+        elif a.get("modo") == "local" and local.get("texto"):
+            conversa = local["texto"]
         proveedores = []
         for ident, p in PROVEEDORES.items():
             clave = claves.get(ident) or ""
@@ -282,6 +307,7 @@ class MonitorModelos:
             "texto": f"{texto} · {por_que}" if texto else None,
             "equipo": self.equipo, "ollama": {**self.ollama, "descarga": dict(self.descarga) if self.descarga else None},
             "recomendados": recomendados, "proveedores": proveedores,
+            "embeddings": embed, "para_archivos": {"buscar": sugerido_embed["id"], "conversar": conversa},
         }
         if estado != self._ultimo:
             self._ultimo = estado
@@ -416,7 +442,7 @@ class MonitorModelos:
             self.descarga = {"modelo": modelo, "pct": 100}
             notificar(t("Modelo descargado", "Model downloaded"), modelo)
             self.leer_ollama()
-            if usar:
+            if usar and not es_embebedor(modelo):         # uno de embeddings nunca pasa a ser el de conversar
                 es_vision = any(m["id"] == modelo and m["vision"] for m in CATALOGO)
                 self._usar({"modo": "local", "modelo": modelo, "tipo": "vision" if es_vision else "texto"})
         except (OSError, ValueError) as e:
@@ -516,6 +542,31 @@ def preguntar(monitor, texto, sistema=None, imagen=None, historial=None, timeout
         return re.sub(r"<think>.*?</think>", "", texto, flags=re.S).strip()     # qwen3 piensa en voz alta
     except (OSError, ValueError) as e:
         raise ErrorIA(_error(e)) from None
+
+
+def es_embebedor(nombre):
+    n = nombre.lower()
+    return "embed" in n or any(n.split(":")[0] == m["id"].split(":")[0] for m in CATALOGO_EMBED) or "minilm" in n or "bge-" in n
+
+
+def embebedores_instalados(monitor=None):
+    """Los modelos de embeddings que tiene Ollama ([] si Ollama no está corriendo)."""
+    if monitor is not None and monitor.ollama.get("estado") == "activo":
+        return [m["nombre"] for m in monitor.ollama["modelos"] if m.get("embeddings")]
+    try:
+        datos = _pedir(f"{OLLAMA}/api/tags", timeout=3)
+    except (OSError, ValueError):
+        return []
+    return [m["name"] for m in datos.get("models", []) if es_embebedor(m["name"])]
+
+
+def embeber(textos, modelo, timeout=120):
+    """Vectores de `textos` con un modelo de embeddings local de Ollama (nunca por API: es todo el índice)."""
+    r = _pedir(f"{OLLAMA}/api/embed", {"model": modelo, "input": list(textos), "truncate": True}, timeout=timeout)
+    vectores = r.get("embeddings")
+    if not isinstance(vectores, list) or len(vectores) != len(textos):
+        raise ValueError(r.get("error") or "embed")
+    return vectores
 
 
 def _mime(datos):

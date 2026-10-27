@@ -32,12 +32,16 @@
         <button data-g="ia" class="activa"><span class="icono">bolt</span><span data-t="IA|AI"></span></button>
         <button data-g="archivos"><span class="icono">folder_copy</span><span data-t="Archivos|Files"></span></button>
       </nav>
+      <button class="redondo" id="ver-recorrido" type="button" data-t-title="Ver recorrido|See tour"><span class="icono">tour</span></button>
       <span class="estado-servicio" id="servicio" title=""></span>
     </header>
     <!-- «Hay una versión nueva» (akari/actualizacion.py) -->
     <div class="tarjeta actualizacion" id="actualizacion" hidden></div>
     <!-- las piezas del grupo elegido -->
     <nav class="sub-pestanas piezas" id="piezas"></nav>
+    <!-- recorrido de bienvenida (en la burbuja va arriba de su cuerpo) y «Primeros pasos» -->
+    <div id="recorrido" hidden></div>
+    <div id="primeros" hidden></div>
 
     <!-- IA · Asistente -->
     <section id="p-asis" class="pagina">
@@ -101,6 +105,18 @@
     <!-- Archivos · Audio -->
     <section id="p-audio" class="pagina">
       <div id="audio-contenido" class="doc-columna"></div>
+    </section>
+
+    <!-- Archivos · Cerebro: el buscador queda fijo (no se redibuja mientras se escribe) -->
+    <section id="p-cerebro" class="pagina">
+      <div id="cer-contenido" class="doc-columna"></div>
+      <div id="cer-buscador" class="doc-columna" hidden>
+        <form class="campo cer-campo" id="cer-form"><span class="icono">search</span>
+          <input id="cer-q" autocomplete="off" spellcheck="false" data-t-ph="¿Dónde está…? (p. ej. informe de la tesis)|Where is…? (e.g. thesis report)">
+          <button class="boton" type="button" id="cer-preguntar" data-t="Preguntar|Ask"></button></form>
+        <div id="cer-resultados"></div>
+      </div>
+      <div id="cer-memoria" class="doc-columna"></div>
     </section>
   </main>
 

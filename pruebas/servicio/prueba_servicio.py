@@ -47,6 +47,7 @@ class Servicio(unittest.TestCase):
         self.assertIn("primary", e["tema"]["colores"])
         self.assertIsInstance(e["dispositivos"], dict)
         self.assertIn("habilidades", e)
+        self.assertIn("configurado", e["cerebro"])
 
     def test_panel_y_burbuja(self):
         estado, tipo, cuerpo = self.pedir("/?vista=burbuja&c=ia")
