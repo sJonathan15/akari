@@ -58,11 +58,11 @@ class Servicio(unittest.TestCase):
     def test_burbujas_y_reposo(self):
         _, _, cuerpo = self.pedir("/api/burbujas")
         d = json.loads(cuerpo)
-        nombres = {b["nombre"] for b in d["burbujas"]}
-        self.assertTrue({"ia", "dispositivos", "habilidades", "documentos"} <= nombres)
+        self.assertEqual([g["nombre"] for g in d["burbujas"]], ["equipo", "ia", "archivos"])
         ia = next(b for b in d["burbujas"] if b["nombre"] == "ia")
         self.assertTrue(ia["teclado"])
-        self.assertGreater(ia["anchoAbierto"], ia["anchoCerrado"])
+        self.assertIn("habilidades", [p["nombre"] for p in ia["piezas"]])
+        self.assertIn("grupos_web", d)
 
         def avisar(abiertas):
             r = urllib.request.Request(URL + "/api/burbujas", data=json.dumps({"abiertas": abiertas}).encode(),

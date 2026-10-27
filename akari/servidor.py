@@ -10,7 +10,7 @@ POST /api/ajustes         {"idioma"?, "avisos"?}
 POST /api/modelos         {"accion", ...}           (API o modelos locales, ver modelos.py)
 POST /api/documentos      {"accion", ...}           (conversor de documentos ⇄ Markdown)
 POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Akari-Formato
-GET  /api/burbujas        las burbujas que dibujan las apps de escritorio (ver burbujas.py)
+GET  /api/burbujas        los grupos (Equipo, IA, Archivos) y sus piezas para las apps (ver burbujas.py)
 POST /api/burbujas        {"abiertas": [...]}: la app avisa qué hay abierto; sin nada → reposo
 GET  /                    panel web (web/) y /modelos/*.glb
 """
@@ -125,7 +125,8 @@ def crear_manejador(servicio):
             if ruta == "/eventos":
                 return self._eventos()
             if ruta == "/api/burbujas":
-                return self._json({"burbujas": burbujas.lista(IDIOMA), "reposo": servicio.reposo})
+                return self._json({"burbujas": burbujas.lista(IDIOMA), "grupos_web": burbujas.grupos_web(),
+                                   "reposo": servicio.reposo})
             base, carpeta = ("/modelos/", ESTATICOS["/modelos/"]) if ruta.startswith("/modelos/") else ("/", ESTATICOS["/"])
             archivo = (carpeta / (ruta[len(base):] or "index.html")).resolve()
             if carpeta.resolve() not in archivo.parents or not archivo.is_file():

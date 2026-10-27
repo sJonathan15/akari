@@ -139,7 +139,8 @@ class Burbuja {
     });
     this.ventana.setAlwaysOnTop(true, WINDOWS ? "screen-saver" : "floating");
     this.ventana.setVisibleOnAllWorkspaces(true);
-    const pagina = `${URL}?vista=burbuja&c=${nombre}`;
+    // la vista del grupo (con pestañas) o, mientras la web no la tenga, la de su primera pieza
+    const pagina = `${URL}?vista=burbuja&c=${medidas.pagina || nombre}`;
     this.ventana.loadURL(pagina);
     this.ventana.webContents.on("did-fail-load", () => setTimeout(() => this.ventana?.loadURL(pagina), 1500));
     this.ventana.webContents.on("did-finish-load", () => this.avisar());
