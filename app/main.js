@@ -106,10 +106,11 @@ async function asegurarServicio() {
 // (el mismo archivo y formato que usan las cápsulas de Quickshell), relativas al área de trabajo.
 const ALTO = 38;              // grosor de la burbuja cerrada
 const MARGEN_BORDE = 40;      // a esta distancia de un lado se vuelve pestaña vertical
+// los tres grupos de AGENTS.md, por si el servicio es de una versión sin GET /api/burbujas
 const BURBUJAS = {
-  dispositivos: { lado: "izquierda", hueco: 8, anchoCerrado: 262, anchoAbierto: 384, altoMaximo: 700 },
-  ia: { lado: "derecha", hueco: 8, anchoCerrado: 262, anchoAbierto: 360, altoMaximo: 760, teclado: true },
-  habilidades: { lado: "derecha", hueco: 380, anchoCerrado: 136, anchoAbierto: 380, altoMaximo: 640 },
+  equipo: { lado: "izquierda", hueco: 8, anchoCerrado: 274, anchoAbierto: 384, altoMaximo: 700 },
+  ia: { lado: "derecha", hueco: 8, anchoCerrado: 342, anchoAbierto: 384, altoMaximo: 780, teclado: true },
+  archivos: { lado: "derecha", hueco: 404, anchoCerrado: 154, anchoAbierto: 380, altoMaximo: 760 },
 };
 const limitar = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -139,7 +140,7 @@ class Burbuja {
     });
     this.ventana.setAlwaysOnTop(true, WINDOWS ? "screen-saver" : "floating");
     this.ventana.setVisibleOnAllWorkspaces(true);
-    const pagina = `${URL}?vista=burbuja&c=${nombre}`;
+    const pagina = `${URL}?vista=burbuja&c=${nombre}`;     // el grupo, con sus piezas en pestañas
     this.ventana.loadURL(pagina);
     this.ventana.webContents.on("did-fail-load", () => setTimeout(() => this.ventana?.loadURL(pagina), 1500));
     this.ventana.webContents.on("did-finish-load", () => this.avisar());
@@ -293,8 +294,8 @@ class Burbuja {
   }
 }
 
-// La lista sale del servicio (GET /api/burbujas, a partir de capsulas/*.qml): así las cápsulas
-// nuevas aparecen solas. Si el servicio es de una versión sin esa ruta, las tres de siempre.
+// Una burbuja por grupo (Equipo, IA, Archivos); la lista sale del servicio (GET /api/burbujas,
+// akari/grupos.py), así una pieza o un grupo nuevo aparece solo.
 function pedirBurbujas() {
   return new Promise((ok) => {
     const req = http.get(URL + "api/burbujas", (r) => {
@@ -302,8 +303,8 @@ function pedirBurbujas() {
       r.on("data", (c) => (texto += c));
       r.on("end", () => {
         try {
-          const lista = JSON.parse(texto).burbujas;
-          if (Array.isArray(lista) && lista.length) return ok(Object.fromEntries(lista.map((b) => [b.nombre, b])));
+          const lista = JSON.parse(texto).grupos;
+          if (Array.isArray(lista) && lista.length) return ok(Object.fromEntries(lista.map((g) => [g.id, g])));
         } catch {}
         ok(BURBUJAS);
       });
