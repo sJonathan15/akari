@@ -20,7 +20,7 @@ class Servicio(unittest.TestCase):
         env = {**os.environ, "HOME": cls.home, "USERPROFILE": cls.home, "APPDATA": os.path.join(cls.home, "AppData", "Roaming"),
                "LOCALAPPDATA": os.path.join(cls.home, "AppData", "Local"), "XDG_CONFIG_HOME": os.path.join(cls.home, ".config"),
                "XDG_CACHE_HOME": os.path.join(cls.home, ".cache"), "XDG_DATA_HOME": os.path.join(cls.home, ".local", "share"),
-               "AKARI_DEMO": os.environ.get("AKARI_DEMO", "")}
+               "AKARI_DEMO": os.environ.get("AKARI_DEMO", ""), "AKARI_RELEASES_URL": "http://127.0.0.1:9"}
         cls.proc = subprocess.Popen([sys.executable, str(RAIZ / "bin" / "akari.py"), "servicio"], env=env,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(80):

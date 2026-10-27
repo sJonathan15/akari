@@ -87,9 +87,13 @@ Linux (AppImage).
 
 Por partes, cada una con su commit:
 
-1. ⬜ Servicio: revisa `releases/latest` una vez al día (prereleases solo si se está en una beta),
-   `actualizacion: {version, notas, url}` en `/api/estado`, notificación; `"actualizar": false` en
-   `ajustes.json` lo apaga.
+1. ✅ Servicio (`akari/actualizacion.py`): un minuto después de arrancar y luego cada hora mira si
+   toca (una vez al día; lo guarda en `CACHE/actualizacion.json`). Sin prereleases salvo que
+   `VERSION` sea una beta o `ajustes.json` diga `"actualizar": "beta"`; `"actualizar": false` lo
+   apaga. `/api/estado` trae `actualizacion: {version, notas, url, beta}` (o `null`), avisa con
+   `notificar` una vez por versión, y `POST /api/actualizacion {"accion": "revisar"}` fuerza la
+   revisión. Pruebas: `pruebas/servicio/prueba_actualizacion.py` (GitHub falso); probado también
+   contra la API real. No corre con `AKARI_DEMO=1`.
 2. ⬜ `akari actualizar` y botón en el panel: baja la versión nueva y reemplaza la instalación de
    `install.sh` / `install.ps1` conservando la configuración; reinicia el servicio.
 3. ⬜ App de Windows y AppImage: updater de Tauri con GitHub Releases y `latest.json`, firmado (clave

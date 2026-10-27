@@ -16,6 +16,7 @@ POST /api/audio           {"accion", ...}           (audio / video → Markdown,
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
 POST /api/asistente       {"accion", ...}           (preguntar, ajustes, voz… ver asistente.py y voz.py)
 POST /api/burbujas        {"abiertas": [...]}: la app de escritorio avisa qué hay abierto; sin nada → reposo
+POST /api/actualizacion   {"accion": "revisar"}     (¿hay versión nueva? ver actualizacion.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -37,6 +38,7 @@ from .modelos import MonitorModelos
 from .documentos import Conversor
 from .audio import Transcriptor, es_audio
 from .tema import Tema
+from .actualizacion import Revisor
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
 MAX_SUBIDA = 200 * 2**20
@@ -64,6 +66,7 @@ class Servicio:
         self.asistente = Asistente(self.cambio, self.modelos)
         self.asistente.voz = Voz(self.cambio, self.asistente)
         self.tema = Tema()
+        self.actualizacion = Revisor(self.cambio)
         self._tema = self.tema.valor
         self.reposo = False
         self.despertar = threading.Condition()
@@ -94,7 +97,8 @@ class Servicio:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
-                "herramientas": self.herramientas.estado, "asistente": self.asistente.estado}
+                "herramientas": self.herramientas.estado, "asistente": self.asistente.estado,
+                "actualizacion": self.actualizacion.estado}
 
     def _bucle(self, paso, intervalo, reposo):
         while True:
@@ -112,6 +116,8 @@ class Servicio:
             threading.Thread(target=self._bucle, args=(paso, intervalo, REPOSO[clave]), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
         self.asistente.voz.revisar()        # si quedó prendida la palabra clave, vuelve a escuchar
+        if not DEMO:
+            self.actualizacion.arrancar()
 
 
 def crear_manejador(servicio):
@@ -192,6 +198,9 @@ def crear_manejador(servicio):
                 abiertas = datos.get("abiertas")
                 servicio.ventanas([str(x) for x in abiertas] if isinstance(abiertas, list) else [])
                 return self._json({"ok": True, "reposo": servicio.reposo})
+            if ruta == "/api/actualizacion" and datos.get("accion") == "revisar":
+                threading.Thread(target=servicio.actualizacion.revisar, args=(True,), daemon=True).start()
+                return self._json({"ok": True})
             if ruta == "/api/ajustes":
                 a = ajustes()
                 if datos.get("idioma") in ("es", "en", "auto"):
