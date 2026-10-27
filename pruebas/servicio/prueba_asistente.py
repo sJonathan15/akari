@@ -178,7 +178,7 @@ class Limites(unittest.TestCase):
             self.assertNotIn("secreto", acciones.leer(str(casa / "proyecto" / ".env")))
             self.assertEqual(acciones.leer(str(casa / "proyecto" / "notas.txt")), "hola")
             self.assertNotIn(".env", acciones.listar(str(casa / "proyecto")))
-            self.assertNotIn("passwd", acciones.leer("/etc/passwd"))
+            self.assertNotIn("root:", acciones.leer("/etc/passwd"))       # fuera de la carpeta personal (en Windows ni existe)
 
     def test_notas(self):
         boveda = tempfile.mkdtemp()
