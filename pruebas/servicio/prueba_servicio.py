@@ -62,6 +62,17 @@ class Servicio(unittest.TestCase):
         self.assertTrue(all(g["piezas"] and g["anchoCerrado"] > 0 for g in grupos))
         self.assertEqual(self.pedir("/?vista=burbuja&c=archivos")[0], 200)
 
+    def test_reposo(self):
+        # la app de escritorio avisa qué hay abierto: con nada abierto, el servicio va a su ritmo de reposo
+        def avisar(abiertas):
+            r = urllib.request.Request(URL + "/api/burbujas", data=json.dumps({"abiertas": abiertas}).encode(),
+                                       method="POST", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(r, timeout=5) as respuesta:
+                return json.loads(respuesta.read())["reposo"]
+        self.assertTrue(avisar([]))
+        self.assertFalse(avisar(["ia"]))
+        self.assertFalse(json.loads(self.pedir("/api/burbujas")[2])["reposo"])
+
     def test_solo_json(self):
         r = urllib.request.Request(URL + "/api/ajustes", data=b"idioma=es", method="POST",
                                    headers={"Content-Type": "application/x-www-form-urlencoded"})

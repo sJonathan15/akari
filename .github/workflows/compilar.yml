@@ -1,5 +1,6 @@
 # Pruebas del servicio en Linux y en Windows de verdad, y compilación de la app:
 #   * en cada push (cualquier rama) y pull request: pruebas (y en Windows, la lectura real de PnP y la batería);
+#   * en main y en la rama de trabajo: la app de Windows (Tauri), instalada y medida;
 #   * con una etiqueta v* (p. ej. v0.2.0): AppImage x86_64 + arm64 e instalador de Windows,
 #     publicados en Releases (install.sh e install.ps1 bajan de ahí la última versión).
 name: compilar
@@ -58,13 +59,138 @@ jobs:
           name: linux
           path: app/dist/*.AppImage
 
-  windows:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: pruebas
+  # La app de Windows (Tauri + WebView2, escritorio/): se compila en cada push de main o de la
+  # rama de trabajo, se instala en silencio, se mide y falla si no cumple las metas.
+  escritorio:
+    name: Windows (Tauri)
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/akari-windows-ligero' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    env:
+      LIMITE_INSTALADOR_MB: 40
+      LIMITE_RAM_MB: 150
+      LIMITE_CPU_PCT: 1
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: escritorio
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: escritorio
+      - name: Pruebas de la geometría (Rust)
+        run: cargo test --quiet
+      - name: Python embebido (recortado)
+        run: ./scripts/python.ps1
+      - name: Compilar el instalador
+        run: npx --yes @tauri-apps/cli@2.12.1 build --bundles nsis --ci
+      - name: Instalador
+        run: |
+          $exe = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $exe.FullName dist/akari-setup-x64.exe
+          '{0:N1} MB' -f ($exe.Length / 1MB)
+      - name: Instalar en silencio (por usuario, sin admin)
+        run: |
+          Start-Process -Wait dist/akari-setup-x64.exe -ArgumentList '/S'
+          $dir = "$env:LOCALAPPDATA\Programs\akari"
+          if (-not (Test-Path "$dir\akari.exe")) {
+            Get-ChildItem $env:LOCALAPPDATA -Filter akari.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object FullName
+            throw "akari.exe no quedó en $dir"
+          }
+          '{0:N1} MB instalados' -f ((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+      - name: Medir (30 s en reposo, luego el ratón sobre una burbuja)
+        run: ./scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -Salida medicion.json -Captura captura.png
+      - name: El servicio de la app
+        run: |
+          $b = Invoke-RestMethod http://127.0.0.1:47830/api/burbujas
+          "$($b.burbujas.Count) burbujas: $(($b.burbujas | ForEach-Object nombre) -join ', ') · reposo: $($b.reposo)"
+      - name: Cerrar la app de golpe cierra también el servicio
+        run: |
+          $m = Get-Content medicion.json | ConvertFrom-Json
+          Stop-Process -Id $m.pid -Force
+          Start-Sleep -Seconds 3
+          $quedan = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*Programs\akari*' })
+          $quedan | ForEach-Object { "$($_.Name) $($_.CommandLine)" }
+          if ($quedan.Count) { throw "quedaron $($quedan.Count) procesos de akari" }
+      - name: Variantes de WebView2 (informativo)
+        continue-on-error: true
+        run: |
+          foreach ($v in '--in-process-gpu', '--disable-gpu', '--in-process-gpu --disable-gpu-compositing') {
+            $env:AKARI_WEBVIEW_ARGS = $v
+            $n = ($v -replace '[^a-z]+', '-').Trim('-')
+            ./scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -Nombre "tauri $v" -Salida "variante-$n.json" | Out-Null
+            $m = Get-Content "variante-$n.json" | ConvertFrom-Json
+            "{0,-50} RAM {1,6} MB · CPU {2,5} % · abre: {3}" -f $v, $m.ram_ws_mb, $m.cpu_reposo_pct, $m.raton.se_abrio
+            Stop-Process -Id $m.pid -Force; Start-Sleep -Seconds 3
+          }
+      - name: Desinstalar limpio
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\akari"
+          Get-Process akari -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3      # que terminen también los procesos de WebView2
+          Start-Process -Wait "$dir\uninstall.exe" -ArgumentList '/S'
+          # el desinstalador de NSIS se copia a %TEMP% y sigue desde ahí: se espera a que termine
+          foreach ($i in 1..40) { if (-not (Test-Path $dir)) { break }; Start-Sleep -Seconds 1 }
+          $restos = @(Get-ChildItem $dir -Recurse -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name akari -ErrorAction SilentlyContinue
+          $cache = Test-Path "$env:LOCALAPPDATA\io.github.sjonathan15.akari"
+          "restos: $($restos.Count) · inicio con Windows: $([bool]$run) · caché WebView2: $cache"
+          $restos
+          if ($restos.Count -or $run -or $cache) { throw 'la desinstalación dejó cosas' }
+      - name: Metas
+        if: always()
+        run: |
+          $m = Get-Content medicion.json | ConvertFrom-Json
+          $mb = [math]::Round((Get-Item dist/akari-setup-x64.exe).Length / 1MB, 1)
+          $filas = @(
+            @('Instalador', "$mb MB", "≤ $env:LIMITE_INSTALADOR_MB MB", $mb -le $env:LIMITE_INSTALADOR_MB),
+            @('RAM en reposo (Working Set, todos los procesos)', "$($m.ram_ws_mb) MB", "≤ $env:LIMITE_RAM_MB MB", $m.ram_ws_mb -le $env:LIMITE_RAM_MB),
+            @('RAM privada (informativo)', "$($m.ram_privada_mb) MB", '—', $true),
+            @('CPU en reposo', "$($m.cpu_reposo_pct) %", "≤ $env:LIMITE_CPU_PCT %", $m.cpu_reposo_pct -le $env:LIMITE_CPU_PCT),
+            @('Burbujas en pantalla', "$($m.ventanas.Count)", '≥ 3', $m.ventanas.Count -ge 3),
+            @('Se abre al pasar el ratón y se cierra al salir', "$($m.raton.se_abrio) / $($m.raton.se_cerro)", 'True / True', [bool]($m.raton.se_abrio -and $m.raton.se_cerro))
+          )
+          $tabla = "| Medida | Valor | Meta | |`n|---|---|---|---|`n" + (($filas | ForEach-Object { "| $($_[0]) | $($_[1]) | $($_[2]) | $(if ($_[3]) { '✅' } else { '❌' }) |" }) -join "`n")
+          $procesos = ($m.detalle | ForEach-Object { "$($_.proceso) ×$($_.cuantos): $($_.ws_mb) MB" }) -join ' · '
+          "## akari para Windows (Tauri)`n`n$tabla`n`nProcesos: $procesos" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          if ($filas | Where-Object { -not $_[3] }) { throw 'no se cumplen las metas' }
+      - name: Captura para el registro
+        if: always()
+        run: |
+          if (-not (Test-Path captura.png)) { return }
+          Add-Type -AssemblyName System.Drawing
+          $img = [System.Drawing.Image]::FromFile((Resolve-Path captura.png))
+          $chica = New-Object System.Drawing.Bitmap $img, 768, 492
+          $ms = New-Object IO.MemoryStream
+          $chica.Save($ms, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+          "CAPTURA-INICIO"; [Convert]::ToBase64String($ms.ToArray()); "CAPTURA-FIN"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows
+          path: escritorio/dist/akari-setup-x64.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-medicion
+          path: |
+            escritorio/*.json
+            escritorio/captura.png
+
+  # La app Electron en Windows, solo para comparar ("antes"): con workflow_dispatch o con
+  # [medir-antes] en el mensaje del commit.
+  electron-windows:
+    name: Windows (Electron, para comparar)
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[medir-antes]')
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: app
+        shell: pwsh
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -73,28 +199,27 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - run: npm ci
-      - name: Python embebido
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/python-windows.ps1
+        working-directory: app
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/python-windows.ps1
+        working-directory: app
       - run: npx electron-builder --win nsis --x64 --publish never
-      - name: El servicio empaquetado arranca con su Python
-        shell: pwsh
+        working-directory: app
+      - name: Instalar y medir
         run: |
-          $res = "dist/win-unpacked/resources"
-          $p = Start-Process -PassThru -WindowStyle Hidden "$res/python/python.exe" -ArgumentList "$res/akari/bin/akari.py", "servicio"
-          $ok = $false
-          foreach ($i in 1..40) {
-            try { Invoke-RestMethod http://127.0.0.1:47830/api/estado | Out-Null; $ok = $true; break } catch { Start-Sleep -Milliseconds 500 }
-          }
-          Stop-Process -Id $p.Id -Force
-          if (-not $ok) { throw "el servicio no respondió" }
+          $setup = Get-ChildItem app/dist/akari-setup-*.exe | Select-Object -First 1
+          Start-Process -Wait $setup.FullName -ArgumentList '/S'
+          ./escritorio/scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -Nombre electron -Salida electron.json | Out-Null
+          $m = Get-Content electron.json | ConvertFrom-Json
+          $mb = [math]::Round($setup.Length / 1MB, 1)
+          "## akari para Windows (Electron, antes)`n`n| Instalador | RAM (Working Set) | RAM privada | CPU en reposo | abre / cierra |`n|---|---|---|---|---|`n| $mb MB | $($m.ram_ws_mb) MB | $($m.ram_privada_mb) MB | $($m.cpu_reposo_pct) % | $($m.raton.se_abrio) / $($m.raton.se_cerro) |`n`nProcesos: $(($m.detalle | ForEach-Object { "$($_.proceso) ×$($_.cuantos): $($_.ws_mb) MB" }) -join ' · ')" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
-          path: app/dist/akari-setup-*.exe
+          name: electron-medicion
+          path: electron.json
 
   publicar:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [appimage, windows]
+    needs: [appimage, escritorio]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -105,5 +230,7 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/*.AppImage
+            dist/akari-setup-x64.exe
           generate_release_notes: true

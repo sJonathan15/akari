@@ -15,6 +15,7 @@ POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Ak
 POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
 POST /api/asistente       {"accion", ...}           (preguntar, ajustes, voz… ver asistente.py y voz.py)
+POST /api/burbujas        {"abiertas": [...]}: la app de escritorio avisa qué hay abierto; sin nada → reposo
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -37,8 +38,12 @@ from .documentos import Conversor
 from .audio import Transcriptor, es_audio
 from .tema import Tema
 
-DEMO = os.environ.get("AKARI_DEMO") == "1"
-MAX_SUBIDA = 200 * 2**20     # datos de ejemplo (capturas, pruebas)
+DEMO = os.environ.get("AKARI_DEMO") == "1"     # datos de ejemplo (capturas, pruebas)
+MAX_SUBIDA = 200 * 2**20
+# La app de Windows (escritorio/) pide revisar como mucho cada 5 s y, si no hay nada abierto
+# (solo las cabeceras de las burbujas), bajar al ritmo de reposo: casi nada de CPU.
+MINIMO = float(os.environ.get("AKARI_INTERVALO_MIN") or 0)
+REPOSO = {"ia": 30, "dispositivos": 120, "habilidades": 120, "tema": 60, "modelos": 120}
 ESTATICOS = {"/": RAIZ / "web", "/modelos/": RAIZ / "modelos"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript",
          ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json",
@@ -60,6 +65,17 @@ class Servicio:
         self.asistente.voz = Voz(self.cambio, self.asistente)
         self.tema = Tema()
         self._tema = self.tema.valor
+        self.reposo = False
+        self.despertar = threading.Condition()
+
+    def ventanas(self, abiertas):
+        """La app de escritorio dice qué burbujas (o el panel) están abiertas."""
+        reposo = not abiertas
+        if reposo != self.reposo:
+            self.reposo = reposo
+            if not reposo:      # al abrir una, datos frescos ya
+                with self.despertar:
+                    self.despertar.notify_all()
 
     def revisar_tema(self):
         if self.tema.actual() != self._tema:
@@ -80,18 +96,20 @@ class Servicio:
                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
                 "herramientas": self.herramientas.estado, "asistente": self.asistente.estado}
 
-    def _bucle(self, paso, intervalo):
+    def _bucle(self, paso, intervalo, reposo):
         while True:
             try:
                 paso()
             except Exception as e:      # un archivo raro no debe tumbar el servicio
                 print(f"akari: {paso.__qualname__}: {e!r}", file=sys.stderr, flush=True)
-            time.sleep(intervalo)
+            with self.despertar:
+                self.despertar.wait(reposo if self.reposo else max(intervalo, MINIMO))
 
     def arrancar(self):
-        for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5),
-                                (self.revisar_tema, 5), (self.modelos.paso, 10), (self.herramientas.paso, 5)):
-            threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
+        for paso, intervalo, clave in ((self.ia.paso, 1, "ia"), (self.dispositivos.leer, 3, "dispositivos"),
+                                       (self.habilidades.paso, 5, "habilidades"), (self.revisar_tema, 5, "tema"),
+                                       (self.modelos.paso, 10, "modelos"), (self.herramientas.paso, 5, "herramientas")):
+            threading.Thread(target=self._bucle, args=(paso, intervalo, REPOSO[clave]), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
         self.asistente.voz.revisar()        # si quedó prendida la palabra clave, vuelve a escuchar
 
@@ -121,7 +139,7 @@ def crear_manejador(servicio):
             if ruta == "/eventos":
                 return self._eventos()
             if ruta == "/api/burbujas":       # ?todas=1: también las ocultas (el panel las muestra todas)
-                return self._json(grupos.burbujas(todas="todas=1" in self.path))
+                return self._json({**grupos.burbujas(todas="todas=1" in self.path), "reposo": servicio.reposo})
             base, carpeta = ("/modelos/", ESTATICOS["/modelos/"]) if ruta.startswith("/modelos/") else ("/", ESTATICOS["/"])
             archivo = (carpeta / (ruta[len(base):] or "index.html")).resolve()
             if carpeta.resolve() not in archivo.parents or not archivo.is_file():
@@ -170,6 +188,10 @@ def crear_manejador(servicio):
             if ruta == "/api/audio":
                 ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
+            if ruta == "/api/burbujas":
+                abiertas = datos.get("abiertas")
+                servicio.ventanas([str(x) for x in abiertas] if isinstance(abiertas, list) else [])
+                return self._json({"ok": True, "reposo": servicio.reposo})
             if ruta == "/api/ajustes":
                 a = ajustes()
                 if datos.get("idioma") in ("es", "en", "auto"):
