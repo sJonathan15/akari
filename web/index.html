@@ -32,10 +32,14 @@
         <button data-g="ia" class="activa"><span class="icono">bolt</span><span data-t="IA|AI"></span></button>
         <button data-g="archivos"><span class="icono">folder_copy</span><span data-t="Archivos|Files"></span></button>
       </nav>
+      <button class="redondo" id="ver-recorrido" type="button" data-t-title="Ver recorrido|See tour"><span class="icono">tour</span></button>
       <span class="estado-servicio" id="servicio" title=""></span>
     </header>
     <!-- las piezas del grupo elegido -->
     <nav class="sub-pestanas piezas" id="piezas"></nav>
+    <!-- recorrido de bienvenida (en la burbuja va arriba de su cuerpo) y «Primeros pasos» -->
+    <div id="recorrido" hidden></div>
+    <div id="primeros" hidden></div>
 
     <!-- IA · Uso de IA -->
     <section id="p-ia" class="pagina activa">

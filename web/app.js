@@ -820,9 +820,96 @@ function dibujar() {
   aplicarTema(E.tema);
   $("#servicio").classList.add("vivo");
   if (burbuja) dibujarCabecera();
+  dibujarRecorrido();
   const dibujos = { dispositivos: dibujarDisp, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio, cerebro: dibujarCerebro };
   if (dibujos[ui.pagina]) dibujos[ui.pagina]();
+  resaltar();
 }
+
+// ------------------------------------------------------------------ recorrido de bienvenida
+// El estado vive en el servicio (akari/recorrido.py). La burbuja del grupo del paso se abre sola, va a
+// la pieza y muestra la tarjeta arriba; el control del que se habla queda resaltado. En el panel, la
+// tarjeta va arriba y además la lista «Primeros pasos».
+let recVisto = "", recAbrio = false, recRespuesta = "", recDibujado = "", primerosDibujado = "";
+const recorridoAqui = () => !!(E && E.recorrido && E.recorrido.activo && (!burbuja || E.recorrido.paso.grupo === burbuja)
+  && piezasDe(burbuja || grupoDePieza(E.recorrido.paso.pieza)).some((p) => p.id === E.recorrido.paso.pieza));
+function dibujarRecorrido() {
+  const R = E.recorrido, caja = $("#recorrido");
+  if (!caja || !R) return;
+  if (!burbuja) dibujarPrimeros(R.activo ? null : R.primeros);
+  if (!recorridoAqui()) {
+    caja.hidden = true;
+    recDibujado = "";
+    if (burbuja && recAbrio && window.akari) window.akari.burbuja("cerrar");
+    recAbrio = false;
+    recVisto = "";
+    return;
+  }
+  const P = R.paso, clave = `${P.id}:${R.n}`;
+  if (clave !== recVisto) {
+    recVisto = clave;
+    recRespuesta = "";
+    if (burbuja && window.akari) { window.akari.burbuja("abrir"); recAbrio = true; }
+    if (PIEZAS[P.pieza] && ui.pagina !== P.pieza) { mostrarPieza(P.pieza); return; }     // mostrarPieza vuelve a dibujar
+  }
+  const acciones = (P.acciones || []).map((a, i) => `<button class="boton${a.principal ? " principal" : ""}" data-rec-acc="${i}">${esc(a.texto)}</button>`).join("");
+  const html = `<div class="tarjeta rec"><div class="rec-cab"><span class="rec-n">${t(`${R.n} de ${R.total}`, `${R.n} of ${R.total}`)}</span><span class="b-relleno"></span>
+      ${R.voz_disponible ? `<span class="tenue chico">${t("Leérmelo en voz alta", "Read it aloud")}</span><button class="interruptor ${R.voz ? "on" : ""}" data-rec="voz" aria-label="voz"></button>` : ""}
+      <button class="enlace" data-rec="saltar">${t("Saltar", "Skip")}</button></div>
+    <strong class="rec-titulo">${esc(P.titulo)}</strong><p>${esc(P.texto)}</p>
+    ${acciones ? `<div class="botones">${acciones}</div>` : ""}${recRespuesta ? `<p class="chico mod-respuesta">${esc(recRespuesta)}</p>` : ""}
+    <div class="botones rec-pie"><button class="boton" data-rec="anterior" ${R.n === 1 ? "disabled" : ""}>${icono("arrow_back")} ${t("Anterior", "Back")}</button>
+      <button class="boton principal" data-rec="siguiente">${R.n === R.total ? t("Terminar", "Finish") : t("Siguiente", "Next")} ${icono("arrow_forward")}</button></div></div>`;
+  caja.hidden = false;
+  if (burbuja && caja.parentElement !== $("#b-contenido")) $("#b-contenido").prepend(caja);
+  if (html !== recDibujado) { recDibujado = html; caja.innerHTML = html; }
+}
+function dibujarPrimeros(lista) {
+  const caja = $("#primeros");
+  if (!caja) return;
+  const html = !lista ? "" : `<div class="tarjeta primeros"><div class="rec-cab"><strong>${t("Primeros pasos", "First steps")}</strong><span class="b-relleno"></span>
+    <button class="redondo" data-rec="cerrar_primeros" title="${t("Cerrar", "Close")}">${icono("close")}</button></div>
+    ${lista.map((x) => `<button class="cer-check${x.hecho ? " hecho" : ""}" data-ir-pieza="${x.pieza}">${icono(x.hecho ? "check_circle" : "radio_button_unchecked", x.hecho)}<span>${esc(x.texto)}</span></button>`).join("")}</div>`;
+  caja.hidden = !html;
+  if (html !== primerosDibujado) { primerosDibujado = html; caja.innerHTML = html; }
+}
+function resaltar() {
+  document.querySelectorAll(".resaltado").forEach((el) => el.classList.remove("resaltado"));
+  if (!recorridoAqui()) return;
+  const sel = E.recorrido.paso.resalta;
+  const el = sel === "cabecera" ? (burbuja ? $("#b-cabecera") : $(".cabecera")) : sel ? document.querySelector(`#${PIEZAS[ui.pagina]} ${sel}`) : null;
+  if (el) el.classList.add("resaltado");
+}
+async function recAccion(b) {
+  const R = E.recorrido;
+  if (b.dataset.recAcc !== undefined) {
+    const a = R.paso.acciones[Number(b.dataset.recAcc)];
+    const boton = a.pulsar && document.querySelector(`#${PIEZAS[ui.pagina]} ${a.pulsar}`);
+    if (boton) { boton.click(); return; }                         // p. ej. «Crear mi cerebro» con las carpetas elegidas
+    if (a.pieza) {
+      if (a.pestana) { ui.modPestana = a.pestana; modelosDibujado = ""; }
+      if (piezasDe(burbuja || grupoDePieza(a.pieza)).some((p) => p.id === a.pieza)) mostrarPieza(a.pieza);
+      return dibujar();
+    }
+    b.disabled = true;
+    const r = await enviar(a.ruta, a.cuerpo);
+    recRespuesta = r.mensaje || (r.ok ? t("Listo, sigue en marcha.", "Done, it's on its way.") : t("No se pudo.", "It didn't work."));
+    recDibujado = "";
+    return dibujar();
+  }
+  const acc = b.dataset.rec;
+  const cuerpo = { accion: acc };
+  if (acc === "voz") cuerpo.activo = !R.voz;
+  const r = await enviar("/api/recorrido", cuerpo);
+  if (r.recorrido) { E.recorrido = r.recorrido; dibujar(); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-rec], [data-rec-acc], [data-ir-pieza], #ver-recorrido");
+  if (!b) return;
+  if (b.id === "ver-recorrido") { recVisto = ""; return enviar("/api/recorrido", { accion: "reiniciar" }).then((r) => { if (r.recorrido) { E.recorrido = r.recorrido; dibujar(); } }); }
+  if (b.dataset.irPieza) return PIEZAS[b.dataset.irPieza] && mostrarPieza(b.dataset.irPieza);
+  recAccion(b);
+});
 
 // ------------------------------------------------------------------ grupos y piezas
 const NOMBRES = { dispositivos: ["Dispositivos", "Devices"], uso: ["Uso de IA", "AI usage"], modelos: ["Modelos", "Models"],
@@ -875,6 +962,10 @@ function traducir() {
   document.querySelectorAll("[data-t]").forEach((el) => {
     const [es, en] = el.dataset.t.split("|");
     el.textContent = t(es, en);
+  });
+  document.querySelectorAll("[data-t-title]").forEach((el) => {
+    const [es, en] = el.dataset.tTitle.split("|");
+    el.title = t(es, en);
   });
   document.querySelectorAll("[data-t-ph]").forEach((el) => {
     const [es, en] = el.dataset.tPh.split("|");
@@ -1074,7 +1165,7 @@ function iniciarBurbuja() {
   const reteniendo = () => document.activeElement && document.activeElement.matches("input") && forma.contains(document.activeElement);
   const programarCierre = () => {
     clearTimeout(cierre);
-    cierre = setTimeout(() => { if (!fijada && !reteniendo() && !forma.matches(":hover")) enviar("cerrar"); }, 450);
+    cierre = setTimeout(() => { if (!fijada && !reteniendo() && !recorridoAqui() && !forma.matches(":hover")) enviar("cerrar"); }, 450);
   };
   forma.addEventListener("mouseenter", () => { clearTimeout(cierre); if (!arrastre) enviar("abrir"); });
   forma.addEventListener("mouseleave", programarCierre);

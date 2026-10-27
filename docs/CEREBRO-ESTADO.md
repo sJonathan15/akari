@@ -18,7 +18,7 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
 | 5 | Pieza «Cerebro» en el grupo Archivos (estado + buscador + abrir) | ✅ hecho (web probada con Playwright; QML escrita, sin Quickshell para probarla aquí) |
 | 6 | Búsqueda por significado (embeddings de Ollama) + tarjeta «Modelos de IA» | ✅ hecho (probado con un Ollama falso en las pruebas; falta probar con el real) |
 | 7 | Ganchos opt-in (Claude Code SessionStart/SessionEnd, AGENTS.md de Codex) | ✅ hecho (probado a mano) |
-| 8 | Recorrido de bienvenida (fase final) | 🟡 a medias: servicio, API, `akari recorrido` y prueba hechos; falta la tarjeta en burbujas/panel/cápsulas |
+| 8 | Recorrido de bienvenida (fase final) + «Primeros pasos» | ✅ hecho (web probada con capturas en demo; QML escrita, sin probar) |
 | — | Pruebas automáticas (`pruebas/servicio/prueba_cerebro.py`, 11 pruebas) | ✅ hecho |
 
 ## Archivos
@@ -68,6 +68,13 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
 - La bandeja de la app (`app/`, otra sesión) solo tiene que mandar `POST /api/recorrido {"accion": "reiniciar"}`
   o correr `akari recorrido`.
 - Prueba: `pruebas/servicio/prueba_recorrido.py`.
+- Web (`web/app.js`, `dibujarRecorrido`, `dibujarPrimeros`, `resaltar`): tarjeta `#recorrido` arriba del panel y,
+  en la burbuja del grupo del paso, arriba de su cuerpo (la abre con `window.akari.burbuja("abrir")` y no la deja
+  cerrarse mientras dure el paso); el control `paso.resalta` late con `.resaltado`. «Primeros pasos» en el
+  panel (cuando no hay recorrido en marcha). Botón 🏳 «Ver recorrido» en la cabecera del panel.
+- QML: `capsulas/TarjetaRecorrido.qml` arriba del cuerpo de `CapsulaGrupo.qml`, que abre el grupo del paso en
+  su pieza y lo retiene. (En QML todavía no se resalta el control: solo se abre la pieza.)
+- Capturas: `herramientas/capturas-recorrido.js` (Playwright) → `docs/recorrido/NN-paso.png` en modo demo.
 
 ## Cómo se prueba
 
@@ -119,9 +126,9 @@ python3 bin/akari.py cerebro conectar && python3 bin/akari.py cerebro desconecta
 1. Probar `capsulas/PiezaCerebro.qml` en Quickshell de verdad (`AKARI_ABIERTA=1 qs -p capsulas`).
 2. Probar la búsqueda por significado con un Ollama real + `embeddinggemma:300m` (aquí no se pudo bajar Ollama;
    la prueba usa `OllamaFalso` en `prueba_cerebro.py`, que imita `/api/tags`, `/api/show` y `/api/embed`).
-3. Tarjeta del recorrido: en `web/app.js` un `#recorrido` arriba del panel y del cuerpo de la burbuja
-   (`«n de total»`, título, texto, Anterior / Siguiente / Saltar, acciones, interruptor de voz), que en la
-   burbuja del grupo del paso abre la pieza con `window.akari.burbuja("abrir")` y no la deja cerrarse, y
-   resalta `paso.resalta` con la clase `.resaltado`; «Primeros pasos» y «Ver recorrido» en el panel. En QML,
-   `TarjetaRecorrido.qml` arriba del cuerpo de `CapsulaGrupo.qml`, que abre el grupo del paso.
-4. Capturas en modo demo de cada paso (`AKARI_DEMO=1`) para el README y el PR.
+3. Probar `TarjetaRecorrido.qml` / `CapsulaGrupo.qml` en Quickshell y resaltar ahí el control del paso
+   (p. ej. una propiedad `resaltada` en cada pieza que lea `Datos.estado.recorrido.paso.resalta`).
+4. Bandeja de la app (`app/`, otra sesión): entrada «Ver recorrido» → `akari recorrido`.
+5. El paso «asistente» aparece solo cuando exista la pieza `asistente` en `akari/grupos.py`; el asistente
+   debe usar `cerebro.HERRAMIENTAS` / `cerebro.usar_herramienta`, `memoria.registrar_asistente(...)` y
+   `Recorrido.marcar("pregunta")`.

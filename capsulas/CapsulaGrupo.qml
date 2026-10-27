@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import "utiles.js" as U
 
 // Un grupo de piezas en una sola cápsula (ver AGENTS.md): cerrada es una píldora con el chip de cada
@@ -24,13 +25,24 @@ Capsula {
     readonly property int espacioChips: 4
     property var chips: ({})                // clave -> chip dibujado (para saber cuál se tocó)
 
+    // recorrido de bienvenida (akari/recorrido.py): el grupo del paso se abre solo en su pieza, no se
+    // cierra mientras dure el paso y muestra la tarjeta arriba
+    readonly property var rec: Datos.estado ? Datos.estado.recorrido : null
+    readonly property bool enRecorrido: !!rec && rec.activo && !!rec.paso && rec.paso.grupo === nombre
+                                        && piezas.some(p => p.clave === rec.paso.pieza)
+    readonly property string pasoRecorrido: enRecorrido ? rec.paso.id + ":" + rec.n : ""
+    onPasoRecorridoChanged: {
+        if (enRecorrido) { actual = rec.paso.pieza; abierta = true; }
+        else if (!fijada) abierta = false;
+    }
+
     function elegir(clave) { actual = clave; }
     function piezaPara(url) { return piezas.find(p => p.acepta(url)) || null; }
 
     anchoCerrado: piezas.reduce((suma, p) => suma + p.anchoChip, 0) + espacioChips * Math.max(0, piezas.length - 1) + 20
     anchoAbierto: pieza ? pieza.anchoAbierto : 380
     pideTeclado: piezas.some(p => p.pideTeclado)
-    retener: piezas.some(p => p.retener)
+    retener: piezas.some(p => p.retener) || enRecorrido
     aceptaArchivos: piezas.some(p => p.aceptaArchivos)
 
     Component.onCompleted: { for (let i = 0; i < todas.length; i++) todas[i].grupo = grupo; }
@@ -116,9 +128,22 @@ Capsula {
     }
 
     cuerpo: Component {
-        Loader {
-            sourceComponent: grupo.pieza ? grupo.pieza.cuerpo : null
-            height: item ? item.implicitHeight : 0
+        ColumnLayout {
+            spacing: 8
+            TarjetaRecorrido {
+                visible: grupo.enRecorrido
+                dueno: grupo
+                Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
+                Layout.topMargin: 4
+                Layout.preferredHeight: visible ? implicitHeight : 0
+            }
+            Loader {
+                Layout.fillWidth: true
+                sourceComponent: grupo.pieza ? grupo.pieza.cuerpo : null
+                Layout.preferredHeight: item ? item.implicitHeight : 0
+            }
         }
     }
 }

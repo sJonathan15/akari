@@ -410,3 +410,18 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .cer-pend { color: var(--terciario); font-size: 11px; }
 .cer-check { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 4px 2px; font-size: 12px; color: var(--texto); }
 .cer-check:hover .icono { color: var(--primario); }
+
+/* ---------------------------------------------------------------- recorrido de bienvenida */
+#recorrido, #primeros { padding: 0 14px; margin-bottom: 10px; }
+.vista-burbuja #recorrido { padding: 0 10px; margin: 0 0 8px; }
+.rec { border: 1.5px solid var(--primario); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primario) 14%, transparent); }
+.rec p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--texto-var); }
+.rec-cab { display: flex; align-items: center; gap: 8px; }
+.rec-n { font-size: 11px; font-weight: 500; color: var(--sobre-primario); background: var(--primario); border-radius: 10px; padding: 2px 9px; }
+.rec-titulo { display: block; margin-top: 10px; font-size: 15px; font-weight: 500; }
+.rec-pie { justify-content: space-between; }
+.primeros .cer-check.hecho { color: var(--texto-var); text-decoration: line-through; }
+.primeros .cer-check.hecho .icono { color: var(--exito); }
+.resaltado { outline: 2px solid var(--primario) !important; outline-offset: 3px; border-radius: 12px; animation: latir-resaltado 1.6s ease-in-out infinite; }
+@keyframes latir-resaltado { 50% { outline-color: color-mix(in srgb, var(--primario) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .resaltado { animation: none; } }

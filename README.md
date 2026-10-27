@@ -136,6 +136,27 @@ plugged in over USB.
 - `akari estado` — summary in the terminal · `akari abrir` — full panel · `akari app` — bubbles · `akari arrancar` — start whatever is missing · `akari guia` — how to use it on your desktop.
 - A device detected wrongly? Use **Change type** or **Hide** in its card.
 
+### Brain: a map of your computer and a memory for your AI
+
+*Files → Brain* builds an Obsidian vault (`~/Cerebro`) that maps your computer and remembers what you
+did with Claude Code, Codex and the assistant, so your AI looks there first. **It never moves, renames
+or changes your files**: it only reads names, paths, sizes and dates (and, only in folders you enable,
+document text to search by meaning). It always skips hidden folders (`.ssh`, `.gnupg`, `.git`…), `.env`,
+key files, keyrings, password managers, browser profiles, `node_modules` and system folders.
+
+- `akari cerebro buscar <words>` · `donde <name>` · `pregunta "where did I leave the thesis report?"` ·
+  `sesiones` · `proyectos` · `pendiente <text>` · `hecho <n>` · `nota <text>` · `estado` (short output for agents).
+- *Connect Claude Code / Codex* adds a `SessionStart`/`SessionEnd` hook (and a block in Codex's global
+  `AGENTS.md`); *Disconnect* leaves those files exactly as they were. Optional MCP server: `akari cerebro mcp`.
+- Search by meaning uses a small local Ollama model (`embeddinggemma:300m`), recommended in *AI models*.
+
+<img src="docs/cerebro-es.png" width="300" alt="Brain">
+
+### Welcome tour
+The first time akari starts (and after updates, only the new steps) a short tour opens each capsule and
+explains it in place. Replay it with the 🏳 button in the panel or `akari recorrido`.
+Screenshots of every step: [`docs/recorrido/`](docs/recorrido).
+
 ### Settings (`~/.config/akari/`, on Windows `%APPDATA%\akari\`)
 | File | What |
 |---|---|
@@ -297,6 +318,20 @@ vinculado por Bluetooth o conectado por USB.
 | Un dispositivo salió con otro tipo | Ábrelo y usa **Cambiar tipo** u **Ocultar** |
 | Burbujas con esquinas negras (X11) | Tu gestor de ventanas no tiene compositor: actívalo (XFCE: *Retoques del gestor de ventanas → Compositor*) |
 | Hyprland / Sway: no aparece nada al entrar | Ejecuta `akari arrancar`; si tu `hyprland.conf` es un enlace a tus dotfiles, agrega tú `exec-once = ~/.local/bin/akari arrancar` |
+
+### Cerebro: un mapa de tu computadora y una memoria para tu IA
+*Archivos → Cerebro* arma una bóveda de Obsidian (`~/Cerebro`) con el mapa de tu computadora y lo que hiciste
+con Claude Code, Codex y el asistente, para que tu IA busque ahí primero. **Nunca mueve, renombra ni cambia tus
+archivos**: solo mira nombres, rutas, tamaños y fechas (y, solo en las carpetas que actives, el texto de los
+documentos para buscar por significado). Siempre salta las carpetas ocultas (`.ssh`, `.gnupg`, `.git`…), `.env`,
+archivos de claves, llaveros, gestores de contraseñas, perfiles de navegadores, `node_modules` y carpetas del sistema.
+En la terminal: `akari cerebro buscar|donde|pregunta|sesiones|proyectos|pendiente|hecho|nota|estado`. El botón
+*Conectar con Claude Code / Codex* agrega ganchos `SessionStart`/`SessionEnd` (y un bloque en el `AGENTS.md` global
+de Codex); *Desconectar* deja esos archivos tal cual estaban.
+
+### Recorrido de bienvenida
+La primera vez que arranca akari (y al actualizar, solo los pasos nuevos) un recorrido corto abre cada cápsula y
+la explica ahí mismo. Repítelo con el botón 🏳 del panel o con `akari recorrido`. Capturas: [`docs/recorrido/`](docs/recorrido).
 
 ### Privacidad
 Todo se queda en tu equipo: el servicio solo escucha en `127.0.0.1` y solo acepta JSON. De tus cuentas lee
