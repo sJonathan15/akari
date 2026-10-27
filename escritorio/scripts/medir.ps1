@@ -10,7 +10,9 @@ param(
   [switch]$Raton,
   [string]$Nombre = 'akari',
   [string]$Salida = 'medicion.json',
-  [string]$Captura = ''
+  [string]$Captura = '',
+  # tras usar una burbuja, cuánto esperar para medir otra vez (la app de Windows destruye su WebView2 al minuto)
+  [int]$TrasUso = 0
 )
 $ErrorActionPreference = 'Stop'
 
@@ -97,8 +99,8 @@ $nucleos = [Environment]::ProcessorCount
 $cpu = $usado / ($segundos * 1000 * $nucleos) * 100
 
 # ------------------------------------------------------------ burbujas y ratón
-$rects = Rects $app.Id
-$raton = $null
+$rects = @(Rects $app.Id | Where-Object { $_[2] -gt 20 -and $_[3] -gt 20 })   # sin las ventanitas ocultas de la bandeja
+$prueba = $null     # (en PowerShell $prueba y $Raton no se pisan; $raton sí sería el mismo que $Raton)
 if ($Raton) {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   $pantalla = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
@@ -107,8 +109,15 @@ if ($Raton) {
   $ia = $rects | Where-Object { $_[0] -ge $centro } | Sort-Object { $_[0] } | Select-Object -First 1
   if ($ia) {
     Mover ($ia[0] + 40) ($ia[1] + 15)
-    Start-Sleep -Milliseconds 1800
-    $abierta = Rects $app.Id | Where-Object { $_[0] -le $ia[0] + 40 -and $_[0] + $_[2] -ge $ia[0] + 40 -and $_[1] -le $ia[1] + 15 } | Select-Object -First 1
+    # la primera vez se crea WebView2: hasta 8 s
+    $abierta = $null
+    foreach ($i in 1..27) {
+      Start-Sleep -Milliseconds 300
+      $abierta = Rects $app.Id | Where-Object { $_[0] -le $ia[0] + 40 -and $_[0] + $_[2] -ge $ia[0] + 40 -and $_[1] -le $ia[1] + 15 -and $_[3] -gt $ia[3] * 3 } | Select-Object -First 1
+      if ($abierta) { break }
+    }
+    $tarda = $i * 300
+    Start-Sleep -Milliseconds 700      # que termine la animación
     if ($Captura) {
       $bmp = New-Object System.Drawing.Bitmap 1280, 820
       $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -117,14 +126,24 @@ if ($Raton) {
       $g.Dispose(); $bmp.Dispose()
     }
     Mover ($pantalla.Left + 30) ($pantalla.Bottom - 30)
-    Start-Sleep -Milliseconds 1800
-    $cerrada = Rects $app.Id | Where-Object { $_[0] -eq $ia[0] -and $_[1] -eq $ia[1] } | Select-Object -First 1
-    $raton = [ordered]@{
-      cerrada_antes = $ia; abierta = $abierta; cerrada_despues = $cerrada
+    $cerrada = $null
+    foreach ($i in 1..13) {
+      Start-Sleep -Milliseconds 300
+      $cerrada = Rects $app.Id | Where-Object { $_[0] -eq $ia[0] -and $_[1] -eq $ia[1] -and $_[3] -eq $ia[3] } | Select-Object -First 1
+      if ($cerrada) { break }
+    }
+    $prueba = [ordered]@{
+      cerrada_antes = $ia; abierta = $abierta; cerrada_despues = $cerrada; abre_en_ms = $tarda
       se_abrio = [bool]($abierta -and $abierta[3] -gt $ia[3] * 3)
       se_cerro = [bool]($cerrada -and $cerrada[3] -eq $ia[3])
     }
   }
+}
+
+$tras = $null
+if ($TrasUso -gt 0) {
+  Start-Sleep -Seconds $TrasUso
+  $tras = [math]::Round(((Procesos $app.Id) | Measure-Object WorkingSet64 -Sum).Sum / 1MB, 1)
 }
 
 $datos = [ordered]@{
@@ -134,10 +153,11 @@ $datos = [ordered]@{
   procesos = $procs.Count
   detalle = $detalle
   cpu_reposo_pct = [math]::Round($cpu, 2)
+  ram_tras_uso_mb = $tras
   cpu_segundos = [math]::Round($segundos, 1)
   nucleos = $nucleos
   ventanas = @($rects | ForEach-Object { , @($_) })
-  raton = $raton
+  raton = $prueba
   pid = $app.Id
 }
 $datos | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Salida

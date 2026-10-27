@@ -1,20 +1,33 @@
 //! akari para Windows: las mismas burbujas flotantes que en Linux, con WebView2 (ya viene en
-//! Windows 10/11) en lugar de Electron. Cada burbuja es una ventana transparente, sin marco,
-//! siempre visible y fuera de la barra de tareas que carga la página del servicio
-//! (http://127.0.0.1:47830/?vista=burbuja&c=<nombre>); la lista de burbujas la da el servicio
-//! (GET /api/burbujas). Esta app solo maneja las ventanas, la bandeja y el servicio de Python.
+//! Windows 10/11) en lugar de Electron. Hay una burbuja por grupo (AGENTS.md: Equipo, IA,
+//! Archivos) y la lista de grupos y piezas la da el servicio (GET /api/burbujas).
+//!  * Cerrado, cada grupo es una píldora nativa con un chip por pieza (cerradas.rs): sin
+//!    navegador, casi sin memoria.
+//!  * Al pasar el ratón se abre una ventana transparente, sin marco, siempre visible y fuera de
+//!    la barra de tareas con la página del servicio (?vista=burbuja&c=…) en la pieza que estaba
+//!    debajo; al cerrar se esconde y al minuto se destruye.
+//!
+//! Esta app solo maneja las ventanas, la bandeja y el servicio de Python.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// fuera de Windows (solo para desarrollar) las píldoras nativas no se usan
+#![cfg_attr(not(windows), allow(dead_code))]
 
+mod cabecera;
+mod cerradas;
 mod forma;
+mod iconos;
+#[cfg(windows)]
+mod nativo;
 mod servicio;
 #[cfg(windows)]
 mod sistema;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Child;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use forma::{Burbuja, Medidas, Posicion};
 use serde_json::Value;
@@ -38,6 +51,22 @@ struct App {
   python: PathBuf,
   hijo: Mutex<Option<Child>>,
   config: PathBuf,
+  // ---- grupos cerrados sin navegador (cerradas.rs)
+  /// fuentes para dibujar las píldoras; sin ellas, todo con WebView2 como antes
+  fuentes: Option<cabecera::Fuentes>,
+  /// el último /api/estado y cuándo llegó
+  datos: Mutex<(Value, Instant)>,
+  /// grupo → ventana nativa (HWND)
+  nativas: Mutex<HashMap<String, isize>>,
+  /// grupo → dónde quedó cada pieza en su píldora
+  partes: Mutex<HashMap<String, cabecera::Partes>>,
+  /// grupo → la página que tiene cargada su WebView2 (y si ya terminó de cargar)
+  paginas: Mutex<HashMap<String, String>>,
+  cargadas: Mutex<HashSet<String>>,
+  /// archivos soltados sobre un grupo cerrado, esperando a que su página cargue
+  pendientes: Mutex<HashMap<String, Vec<String>>>,
+  /// ¿la web ya dibuja un grupo entero con pestañas? (si no, se carga la página de la pieza)
+  grupos_web: AtomicBool,
 }
 
 fn carpeta_config() -> PathBuf {
@@ -196,17 +225,55 @@ fn informar_abiertas(app: &AppHandle) {
 
 fn crear_burbuja(app: &AppHandle, m: Medidas, guardada: Option<Posicion>) {
   let nombre = m.nombre.clone();
-  let teclado = m.teclado;
-  let b = Burbuja::new(m, guardada.as_ref());
+  let pieza = m
+    .piezas
+    .first()
+    .map(|p| p.nombre.clone())
+    .unwrap_or_else(|| nombre.clone());
+  app
+    .state::<Arc<App>>()
+    .burbujas
+    .lock()
+    .unwrap()
+    .insert(nombre.clone(), Burbuja::new(m, guardada.as_ref()));
+  if cerradas::activo(app) {
+    cerradas::crear(app, &nombre); // WebView2 solo cuando se abra
+  } else {
+    crear_webview(app, &nombre, &pieza);
+  }
+}
+
+/// La página de un grupo abierto en una pieza: la vista de grupo si la web ya la tiene; si no,
+/// la de la pieza.
+fn url_de(app: &AppHandle, grupo: &str, pieza: &str) -> String {
+  if app.state::<Arc<App>>().grupos_web.load(Ordering::Relaxed) {
+    format!("{}?vista=burbuja&c={grupo}&pieza={pieza}", servicio::URL)
+  } else {
+    format!("{}?vista=burbuja&c={pieza}", servicio::URL)
+  }
+}
+
+fn crear_webview(app: &AppHandle, nombre: &str, pieza: &str) {
+  let estado = app.state::<Arc<App>>();
+  let Some(b) = estado.burbujas.lock().unwrap().get(nombre).cloned() else {
+    return;
+  };
+  let teclado = b.m.teclado;
   let (_, _, w, h, _) = area(app);
   let r = b.limites(w, h);
-  let url = format!("{}?vista=burbuja&c={}", servicio::URL, nombre);
+  let url = url_de(app, nombre, pieza);
+  estado
+    .paginas
+    .lock()
+    .unwrap()
+    .insert(nombre.to_string(), pieza.to_string());
+  estado.cargadas.lock().unwrap().remove(nombre);
   let Ok(url) = url.parse() else { return };
   let args = format!(
     "{ARGS_WEBVIEW} {}",
     std::env::var("AKARI_WEBVIEW_ARGS").unwrap_or_default()
   );
-  let constructor = WebviewWindowBuilder::new(app, etiqueta(&nombre), WebviewUrl::External(url))
+  let constructor = WebviewWindowBuilder::new(app, etiqueta(nombre), WebviewUrl::External(url))
     .title("akari")
     .inner_size(r.w, r.h)
     .position(r.x, r.y)
@@ -232,28 +299,101 @@ fn crear_burbuja(app: &AppHandle, m: Medidas, guardada: Option<Posicion>) {
       }
       let app = ventana.app_handle().clone();
       let estado = app.state::<Arc<App>>();
-      if let Some(b) = estado
-        .burbujas
-        .lock()
-        .unwrap()
-        .get(ventana.label().trim_start_matches("b-"))
-      {
-        colocar(&app, &ventana, b);
-        avisar(&app, &ventana, b, !b.desplegada());
+      let nombre = ventana.label().trim_start_matches("b-").to_string();
+      estado.cargadas.lock().unwrap().insert(nombre.clone());
+      let Some(b) = estado.burbujas.lock().unwrap().get(&nombre).cloned() else {
+        return;
+      };
+      if cerradas::activo(&app) {
+        // se creó al pasar el ratón: se muestra solo si sigue abierta
+        if b.desplegada() {
+          mostrar_abierta(&app, &ventana, &nombre, &b);
+        }
+        return;
       }
+      colocar(&app, &ventana, &b);
+      avisar(&app, &ventana, &b, !b.desplegada());
       if estado.mostrar_burbujas() {
         let _ = ventana.show();
       }
       #[cfg(windows)]
       sistema::memoria_baja(&ventana, true);
     });
-  app.state::<Arc<App>>().burbujas.lock().unwrap().insert(nombre, b);
   if let Ok(ventana) = constructor.build() {
     #[cfg(windows)]
     if let Ok(hwnd) = ventana.hwnd() {
       sistema::herramienta(hwnd.0 as _);
     }
     let _ = ventana; // las burbujas no se cierran con Alt+F4: ver on_window_event
+  }
+}
+
+/// Muestra la página de un grupo ya abierta (y esconde su píldora nativa).
+fn mostrar_abierta(app: &AppHandle, ventana: &WebviewWindow, nombre: &str, b: &Burbuja) {
+  colocar(app, ventana, b);
+  avisar(app, ventana, b, false);
+  let _ = ventana.show();
+  #[cfg(windows)]
+  sistema::memoria_baja(ventana, false);
+  cerradas::mostrar(app, nombre, false);
+  // archivos soltados sobre la píldora: a la página, cuando ya tenga sus datos
+  if let Some(rutas) = app.state::<Arc<App>>().pendientes.lock().unwrap().remove(nombre) {
+    let (v, x) = (ventana.clone(), b.m.ancho_abierto / 2.0);
+    std::thread::spawn(move || {
+      std::thread::sleep(Duration::from_millis(900));
+      let datos = serde_json::json!({ "tipo": "soltar", "rutas": rutas, "x": x, "y": 160.0 });
+      let _ = v.eval(format!("window.__akariArrastre && window.__akariArrastre({datos})"));
+    });
+  }
+}
+
+/// Abre un grupo en una pieza (al pasar el ratón por su chip en la píldora nativa).
+fn abrir_en(app: &AppHandle, nombre: &str, pieza: &str) {
+  let estado = app.state::<Arc<App>>();
+  let b = {
+    let mut lista = estado.burbujas.lock().unwrap();
+    let Some(b) = lista.get_mut(nombre) else { return };
+    if b.moviendo {
+      return;
+    }
+    b.abierta = true;
+    b.clone()
+  };
+  // un cierre o una destrucción pendientes ya no corren
+  *estado.cierres.lock().unwrap().entry(nombre.to_string()).or_insert(0) += 1;
+  let actual = estado.paginas.lock().unwrap().get(nombre).cloned();
+  match app.get_webview_window(&etiqueta(nombre)) {
+    None => crear_webview(app, nombre, pieza),
+    Some(v) => {
+      let otra = actual.as_deref() != Some(pieza) && !estado.grupos_web.load(Ordering::Relaxed);
+      if otra {
+        // sin vista de grupo en la web: la página de la otra pieza
+        estado
+          .paginas
+          .lock()
+          .unwrap()
+          .insert(nombre.to_string(), pieza.to_string());
+        estado.cargadas.lock().unwrap().remove(nombre);
+        if let Ok(url) = url_de(app, nombre, pieza).parse() {
+          let _ = v.navigate(url);
+        }
+      } else if estado.cargadas.lock().unwrap().contains(nombre) {
+        mostrar_abierta(app, &v, nombre, &b);
+      }
+    }
+  }
+  informar_abiertas(app);
+}
+
+/// Pone la ventana de WebView2 de un grupo (si existe) donde dice su geometría.
+fn colocar_webview(app: &AppHandle, nombre: &str) {
+  let estado = app.state::<Arc<App>>();
+  let Some(b) = estado.burbujas.lock().unwrap().get(nombre).cloned() else {
+    return;
+  };
+  if let Some(v) = app.get_webview_window(&etiqueta(nombre)) {
+    colocar(app, &v, &b);
+    avisar(app, &v, &b, !b.desplegada());
   }
 }
 
@@ -289,7 +429,7 @@ fn burbuja(app: AppHandle, ventana: WebviewWindow, estado: State<Arc<App>>, acci
         c.insert(nombre.clone(), n);
         n
       };
-      let app2 = app.clone();
+      let (app2, nombre) = (app.clone(), nombre.clone());
       std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(450));
         // todo lo que toca ventanas va al hilo de la interfaz (y sin tener el candado tomado
@@ -303,12 +443,48 @@ fn burbuja(app: AppHandle, ventana: WebviewWindow, estado: State<Arc<App>>, acci
           let Some(b) = estado.burbujas.lock().unwrap().get(&nombre).cloned() else {
             return;
           };
-          if let (false, Some(v)) = (b.desplegada(), app3.get_webview_window(&etiqueta(&nombre))) {
-            colocar(&app3, &v, &b);
-            avisar(&app3, &v, &b, true);
+          let Some(v) = app3.get_webview_window(&etiqueta(&nombre)) else {
+            return;
+          };
+          if b.desplegada() {
+            return;
+          }
+          if cerradas::activo(&app3) {
+            // vuelve la píldora nativa; la página queda escondida un minuto por si se reabre
+            cerradas::pintar(&app3, &nombre);
+            cerradas::mostrar(&app3, &nombre, estado.mostrar_burbujas());
+            let _ = v.hide();
             #[cfg(windows)]
             sistema::memoria_baja(&v, true);
+            let app4 = app3.clone();
+            std::thread::spawn(move || {
+              std::thread::sleep(Duration::from_secs(60));
+              let app5 = app4.clone();
+              let _ = app4.run_on_main_thread(move || {
+                let estado = app5.state::<Arc<App>>();
+                let sigue = estado.cierres.lock().unwrap().get(&nombre) == Some(&turno);
+                let abierta = estado
+                  .burbujas
+                  .lock()
+                  .unwrap()
+                  .get(&nombre)
+                  .map(|b| b.desplegada())
+                  .unwrap_or(false);
+                if sigue && !abierta {
+                  if let Some(v) = app5.get_webview_window(&etiqueta(&nombre)) {
+                    let _ = v.destroy();
+                  }
+                  estado.paginas.lock().unwrap().remove(&nombre);
+                  estado.cargadas.lock().unwrap().remove(&nombre);
+                }
+              });
+            });
+            return;
           }
+          colocar(&app3, &v, &b);
+          avisar(&app3, &v, &b, true);
+          #[cfg(windows)]
+          sistema::memoria_baja(&v, true);
         });
       });
     }
@@ -345,6 +521,9 @@ fn burbuja(app: AppHandle, ventana: WebviewWindow, estado: State<Arc<App>>, acci
     _ => return,
   }
   drop(lista);
+  if cerradas::activo(&app) && matches!(accion.as_str(), "soltar" | "fabrica") {
+    cerradas::pintar(&app, &nombre);
+  }
   informar_abiertas(&app);
 }
 
@@ -356,19 +535,40 @@ fn alternar_panel(app: AppHandle) {
 fn recolocar_todas(app: &AppHandle) {
   let (_, _, w, h, _) = area(app);
   let estado = app.state::<Arc<App>>();
-  let mut lista = estado.burbujas.lock().unwrap();
-  for (nombre, b) in lista.iter_mut() {
-    b.recolocar(w, h);
-    if let Some(v) = app.get_webview_window(&etiqueta(nombre)) {
-      colocar(app, &v, b);
-      avisar(app, &v, b, !b.desplegada());
+  let nombres: Vec<String> = {
+    let mut lista = estado.burbujas.lock().unwrap();
+    lista.values_mut().for_each(|b| b.recolocar(w, h));
+    lista.keys().cloned().collect()
+  };
+  for nombre in nombres {
+    colocar_webview(app, &nombre);
+    if cerradas::activo(app) {
+      cerradas::pintar(app, &nombre);
     }
   }
 }
 
 fn mostrar_todas(app: &AppHandle, si: bool) {
-  for v in app.webview_windows().values().filter(|v| v.label().starts_with("b-")) {
-    let _ = if si { v.show() } else { v.hide() };
+  let estado = app.state::<Arc<App>>();
+  let lista: Vec<(String, bool)> = estado
+    .burbujas
+    .lock()
+    .unwrap()
+    .iter()
+    .map(|(n, b)| (n.clone(), b.desplegada()))
+    .collect();
+  for (nombre, abierta) in lista {
+    if let Some(v) = app.get_webview_window(&etiqueta(&nombre)) {
+      // con píldoras nativas, la página solo se ve abierta
+      let _ = if si && (abierta || !cerradas::activo(app)) {
+        v.show()
+      } else {
+        v.hide()
+      };
+    }
+    if cerradas::activo(app) {
+      cerradas::mostrar(app, &nombre, si && !abierta);
+    }
   }
 }
 
@@ -570,11 +770,32 @@ fn arrancar(app: AppHandle) {
   if let Some(hijo) = servicio::asegurar(&estado.raiz, &estado.python) {
     *estado.hijo.lock().unwrap() = Some(hijo);
   }
-  let medidas: Vec<Medidas> = servicio::pedir("GET", "/api/burbujas", None)
+  let respuesta = servicio::pedir("GET", "/api/burbujas", None)
     .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-    .and_then(|v| serde_json::from_value(v["burbujas"].clone()).ok())
+    .unwrap_or_default();
+  estado
+    .grupos_web
+    .store(respuesta["grupos_web"].as_bool().unwrap_or(false), Ordering::Relaxed);
+  let medidas: Vec<Medidas> = serde_json::from_value(respuesta["burbujas"].clone())
+    .ok()
     .filter(|l: &Vec<Medidas>| !l.is_empty())
     .unwrap_or_else(forma::de_fabrica);
+  if cerradas::activo(&app) {
+    // los datos de las píldoras antes de dibujarlas; luego, de vez en cuando
+    if let Some(d) = servicio::pedir("GET", "/api/estado", None).and_then(|t| serde_json::from_str(&t).ok()) {
+      *estado.datos.lock().unwrap() = (d, Instant::now());
+    }
+    #[cfg(windows)]
+    {
+      let app2 = app.clone();
+      nativo::iniciar(Box::new(move |nombre, ev| {
+        let (app3, nombre) = (app2.clone(), nombre.to_string());
+        let _ = app2.run_on_main_thread(move || cerradas::evento(&app3, &nombre, ev));
+      }));
+    }
+    let app2 = app.clone();
+    std::thread::spawn(move || cerradas::sondear(app2));
+  }
   let guardadas = leer_json(&estado.config.join("posiciones.json"));
   for m in medidas {
     let p = serde_json::from_value::<Posicion>(guardadas["capsulas"][&m.nombre].clone()).ok();
@@ -583,6 +804,22 @@ fn arrancar(app: AppHandle) {
     let _ = app.run_on_main_thread(move || crear_burbuja(&app2, m, p));
   }
   informar_abiertas(&app);
+}
+
+/// Las fuentes de Windows para las píldoras nativas (Segoe UI, Cascadia Mono o Consolas y la
+/// de símbolos para ⚡). Fuera de Windows no se usan píldoras nativas.
+fn fuentes_del_sistema() -> Option<cabecera::Fuentes> {
+  if !cfg!(windows) || std::env::var("AKARI_SIN_NATIVAS").is_ok() {
+    return None;
+  }
+  let dir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into()) + r"\Fonts\";
+  let f = |n: &str| format!("{dir}{n}");
+  cabecera::Fuentes::cargar(
+    &[&f("segoeui.ttf")],
+    &[&f("seguisb.ttf"), &f("segoeui.ttf")],
+    &[&f("CascadiaMono.ttf"), &f("consola.ttf")],
+    &[&f("seguisym.ttf")],
+  )
 }
 
 fn main() {
@@ -610,6 +847,14 @@ fn main() {
         python,
         hijo: Mutex::new(None),
         config: config.clone(),
+        fuentes: fuentes_del_sistema(),
+        datos: Mutex::new((Value::Null, Instant::now())),
+        nativas: Mutex::new(HashMap::new()),
+        partes: Mutex::new(HashMap::new()),
+        paginas: Mutex::new(HashMap::new()),
+        cargadas: Mutex::new(HashSet::new()),
+        pendientes: Mutex::new(HashMap::new()),
+        grupos_web: AtomicBool::new(false),
       });
       app.manage(estado.clone());
       // la primera vez queda para iniciar con Windows (se cambia en la bandeja)
