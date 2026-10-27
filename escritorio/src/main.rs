@@ -25,7 +25,6 @@ mod sistema;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -60,13 +59,11 @@ struct App {
   nativas: Mutex<HashMap<String, isize>>,
   /// grupo → dónde quedó cada pieza en su píldora
   partes: Mutex<HashMap<String, cabecera::Partes>>,
-  /// grupo → la página que tiene cargada su WebView2 (y si ya terminó de cargar)
+  /// grupo → la pieza en que se abre su página (y si la página ya terminó de cargar)
   paginas: Mutex<HashMap<String, String>>,
   cargadas: Mutex<HashSet<String>>,
   /// archivos soltados sobre un grupo cerrado, esperando a que su página cargue
   pendientes: Mutex<HashMap<String, Vec<String>>>,
-  /// ¿la web ya dibuja un grupo entero con pestañas? (si no, se carga la página de la pieza)
-  grupos_web: AtomicBool,
 }
 
 fn carpeta_config() -> PathBuf {
@@ -243,14 +240,9 @@ fn crear_burbuja(app: &AppHandle, m: Medidas, guardada: Option<Posicion>) {
   }
 }
 
-/// La página de un grupo abierto en una pieza: la vista de grupo si la web ya la tiene; si no,
-/// la de la pieza.
-fn url_de(app: &AppHandle, grupo: &str, pieza: &str) -> String {
-  if app.state::<Arc<App>>().grupos_web.load(Ordering::Relaxed) {
-    format!("{}?vista=burbuja&c={grupo}&pieza={pieza}", servicio::URL)
-  } else {
-    format!("{}?vista=burbuja&c={pieza}", servicio::URL)
-  }
+/// La página de un grupo (la pieza se elige al mostrarla: ver `mostrar_abierta`).
+fn url_de(grupo: &str) -> String {
+  format!("{}?vista=burbuja&c={grupo}", servicio::URL)
 }
 
 fn crear_webview(app: &AppHandle, nombre: &str, pieza: &str) {
@@ -261,7 +253,7 @@ fn crear_webview(app: &AppHandle, nombre: &str, pieza: &str) {
   let teclado = b.m.teclado;
   let (_, _, w, h, _) = area(app);
   let r = b.limites(w, h);
-  let url = url_de(app, nombre, pieza);
+  let url = url_de(nombre);
   estado
     .paginas
     .lock()
@@ -331,6 +323,12 @@ fn crear_webview(app: &AppHandle, nombre: &str, pieza: &str) {
 /// Muestra la página de un grupo ya abierta (y esconde su píldora nativa).
 fn mostrar_abierta(app: &AppHandle, ventana: &WebviewWindow, nombre: &str, b: &Burbuja) {
   colocar(app, ventana, b);
+  // en la pieza cuyo chip tenía el puntero (web/ventana.js: __akariPieza)
+  let pieza = app.state::<Arc<App>>().paginas.lock().unwrap().get(nombre).cloned();
+  if let Some(pieza) = pieza.filter(|_| b.m.piezas.len() > 1) {
+    let pieza = Value::String(pieza);
+    let _ = ventana.eval(format!("window.__akariPieza && window.__akariPieza({pieza})"));
+  }
   avisar(app, ventana, b, false);
   let _ = ventana.show();
   #[cfg(windows)]
@@ -361,23 +359,15 @@ fn abrir_en(app: &AppHandle, nombre: &str, pieza: &str) {
   };
   // un cierre o una destrucción pendientes ya no corren
   *estado.cierres.lock().unwrap().entry(nombre.to_string()).or_insert(0) += 1;
-  let actual = estado.paginas.lock().unwrap().get(nombre).cloned();
+  estado
+    .paginas
+    .lock()
+    .unwrap()
+    .insert(nombre.to_string(), pieza.to_string());
   match app.get_webview_window(&etiqueta(nombre)) {
     None => crear_webview(app, nombre, pieza),
     Some(v) => {
-      let otra = actual.as_deref() != Some(pieza) && !estado.grupos_web.load(Ordering::Relaxed);
-      if otra {
-        // sin vista de grupo en la web: la página de la otra pieza
-        estado
-          .paginas
-          .lock()
-          .unwrap()
-          .insert(nombre.to_string(), pieza.to_string());
-        estado.cargadas.lock().unwrap().remove(nombre);
-        if let Ok(url) = url_de(app, nombre, pieza).parse() {
-          let _ = v.navigate(url);
-        }
-      } else if estado.cargadas.lock().unwrap().contains(nombre) {
+      if estado.cargadas.lock().unwrap().contains(nombre) {
         mostrar_abierta(app, &v, nombre, &b);
       }
     }
@@ -773,10 +763,7 @@ fn arrancar(app: AppHandle) {
   let respuesta = servicio::pedir("GET", "/api/burbujas", None)
     .and_then(|t| serde_json::from_str::<Value>(&t).ok())
     .unwrap_or_default();
-  estado
-    .grupos_web
-    .store(respuesta["grupos_web"].as_bool().unwrap_or(false), Ordering::Relaxed);
-  let medidas: Vec<Medidas> = serde_json::from_value(respuesta["burbujas"].clone())
+  let medidas: Vec<Medidas> = serde_json::from_value(respuesta["grupos"].clone())
     .ok()
     .filter(|l: &Vec<Medidas>| !l.is_empty())
     .unwrap_or_else(forma::de_fabrica);
@@ -854,7 +841,6 @@ fn main() {
         paginas: Mutex::new(HashMap::new()),
         cargadas: Mutex::new(HashSet::new()),
         pendientes: Mutex::new(HashMap::new()),
-        grupos_web: AtomicBool::new(false),
       });
       app.manage(estado.clone());
       // la primera vez queda para iniciar con Windows (se cambia en la bandeja)

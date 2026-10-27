@@ -21,7 +21,8 @@ TABLA = RAIZ / "escritorio" / "src" / "iconos.rs"
 # lo que usan las cabeceras (web/app.js: htmlCabecera) y algunos para burbujas nuevas
 ICONOS = """mouse keyboard headphones smartphone sports_esports devices_other devices auto_awesome swap_horiz
 diamond auto_stories music_note spa terminal smart_toy bolt widgets mic description handyman build folder
-chat translate notes graphic_eq record_voice_over""".split()
+chat translate notes graphic_eq record_voice_over psychology key construction radio_button_checked
+progress_activity system_update""".split()
 
 
 def main():

@@ -7,10 +7,11 @@ pub const ALTO: f64 = 38.0; // grosor de la burbuja cerrada
 pub const MARGEN_BORDE: f64 = 40.0; // a esta distancia de un lado se vuelve pestaña vertical
 const CERCA_BORDE: f64 = 200.0; // cerca de un borde se despliega hacia el otro lado
 
-/// Lo que dice el servicio de cada burbuja (GET /api/burbujas).
+/// Un grupo, como lo da el servicio (GET /api/burbujas → "grupos", akari/grupos.py).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Medidas {
+  #[serde(rename = "id")]
   pub nombre: String,
   #[serde(default = "derecha")]
   pub lado: String,
@@ -24,27 +25,24 @@ pub struct Medidas {
   pub alto_maximo: f64,
   #[serde(default)]
   pub teclado: bool,
-  #[serde(default)]
+  /// el nombre para mostrar
+  #[serde(rename = "nombre", default)]
   pub titulo: String,
-  #[serde(default)]
-  pub icono: String,
   /// las piezas del grupo (AGENTS.md: Equipo, IA, Archivos), cada una con su chip en la píldora
   #[serde(default)]
   pub piezas: Vec<Pieza>,
-  /// qué cargar en ?vista=burbuja&c=…: el grupo, o su primera pieza si la web aún no tiene grupos
-  #[serde(default)]
-  pub pagina: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Pieza {
+  #[serde(rename = "id")]
   pub nombre: String,
-  #[serde(default)]
+  #[serde(rename = "nombre", default)]
   pub titulo: String,
   #[serde(default)]
   pub icono: String,
   /// ancho lógico de su chip en la píldora cerrada
-  #[serde(default = "chip")]
+  #[serde(rename = "chip", default = "chip")]
   pub ancho: f64,
 }
 fn chip() -> f64 {
@@ -68,28 +66,23 @@ fn alto_maximo() -> f64 {
 
 /// Los tres grupos con su pieza principal, por si el servicio es de una versión sin /api/burbujas.
 pub fn de_fabrica() -> Vec<Medidas> {
-  let m = |nombre: &str, pieza: &str, lado: &str, hueco, cerrado: f64, abierto, maximo, teclado| Medidas {
+  let p = |nombre: &str, icono: &str, ancho| Pieza { nombre: nombre.into(), titulo: nombre.into(), icono: icono.into(), ancho };
+  let m = |nombre: &str, lado: &str, hueco, abierto, maximo, teclado, piezas: Vec<Pieza>| Medidas {
     nombre: nombre.into(),
     lado: lado.into(),
     hueco,
-    ancho_cerrado: cerrado,
+    // como akari/grupos.py: los chips, 20 de margen y 4 entre chips
+    ancho_cerrado: piezas.iter().map(|x| x.ancho).sum::<f64>() + 20.0 + 4.0 * (piezas.len() as f64 - 1.0),
     ancho_abierto: abierto,
     alto_maximo: maximo,
     teclado,
     titulo: nombre.into(),
-    icono: String::new(),
-    piezas: vec![Pieza {
-      nombre: pieza.into(),
-      titulo: nombre.into(),
-      icono: String::new(),
-      ancho: cerrado - 28.0,
-    }],
-    pagina: pieza.into(),
+    piezas,
   };
   vec![
-    m("equipo", "dispositivos", "izquierda", 8.0, 260.0, 384.0, 700.0, false),
-    m("ia", "ia", "derecha", 8.0, 234.0, 360.0, 760.0, true),
-    m("archivos", "documentos", "derecha", 404.0, 178.0, 380.0, 760.0, false),
+    m("equipo", "izquierda", 8.0, 384.0, 700.0, false, vec![p("dispositivos", "devices", 254.0)]),
+    m("ia", "derecha", 8.0, 384.0, 780.0, true, vec![p("uso", "bolt", 92.0), p("habilidades", "auto_awesome", 58.0)]),
+    m("archivos", "derecha", 404.0, 380.0, 760.0, false, vec![p("documentos", "swap_horiz", 58.0)]),
   ]
 }
 
@@ -331,7 +324,18 @@ mod pruebas {
   use super::*;
 
   fn ia() -> Burbuja {
-    Burbuja::new(de_fabrica().remove(1), None)
+    let m = Medidas {
+      nombre: "ia".into(),
+      lado: "derecha".into(),
+      hueco: 8.0,
+      ancho_cerrado: 234.0,
+      ancho_abierto: 360.0,
+      alto_maximo: 760.0,
+      teclado: true,
+      titulo: "IA".into(),
+      piezas: vec![],
+    };
+    Burbuja::new(m, None)
   }
 
   #[test]
@@ -347,7 +351,7 @@ mod pruebas {
       }
     );
     let d = Burbuja::new(de_fabrica().remove(0), None);
-    assert_eq!(d.limites(1920.0, 1040.0).x, 960.0 - 8.0 - 260.0);
+    assert_eq!(d.limites(1920.0, 1040.0).x, 960.0 - 8.0 - 274.0);
   }
 
   #[test]
@@ -443,15 +447,21 @@ mod pruebas {
 
   #[test]
   fn medidas_del_servicio() {
-    let m: Vec<Medidas> = serde_json::from_str(
-      r#"[{"nombre":"voz","lado":"izquierda","hueco":300,"anchoCerrado":120,"anchoAbierto":340,"altoMaximo":500,"teclado":false,"icono":"mic","titulo":"Voz"}]"#,
+    // el formato de akari/grupos.py
+    let v: serde_json::Value = serde_json::from_str(
+      r#"{"grupos":[{"id":"archivos","nombre":"Archivos","lado":"derecha","hueco":404,"anchoAbierto":380,
+           "altoMaximo":760,"archivos":true,"pestanas":true,"anchoCerrado":154,"teclado":false,
+           "piezas":[{"id":"documentos","nombre":"Documentos","icono":"swap_horiz","chip":58},
+                     {"id":"audio","nombre":"Audio","icono":"graphic_eq","chip":72}]}],"alto":38}"#,
     )
     .unwrap();
-    assert_eq!(
-      (m[0].nombre.as_str(), m[0].ancho_cerrado, m[0].hueco),
-      ("voz", 120.0, 300.0)
-    );
-    let minimo: Vec<Medidas> = serde_json::from_str(r#"[{"nombre":"x"}]"#).unwrap();
+    let m: Vec<Medidas> = serde_json::from_value(v["grupos"].clone()).unwrap();
+    assert_eq!((m[0].nombre.as_str(), m[0].titulo.as_str(), m[0].ancho_cerrado, m[0].hueco), ("archivos", "Archivos", 154.0, 404.0));
+    assert_eq!((m[0].piezas[1].nombre.as_str(), m[0].piezas[1].ancho), ("audio", 72.0));
+    let minimo: Vec<Medidas> = serde_json::from_str(r#"[{"id":"x"}]"#).unwrap();
     assert_eq!(minimo[0].ancho_abierto, 380.0);
+    // y los de fábrica, con el mismo ancho que daría el servicio
+    assert_eq!(de_fabrica()[0].ancho_cerrado, 274.0);
   }
+
 }

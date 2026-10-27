@@ -1,8 +1,8 @@
 //! Píldora de un grupo cerrado, dibujada sin navegador (tiny-skia + ab_glyph).
 //!
 //! Con todo cerrado no hace falta WebView2: se ve solo la píldora del grupo (AGENTS.md: Equipo,
-//! IA, Archivos) con un chip-resumen por pieza (el % libre de la IA, las baterías, las
-//! habilidades, los documentos…), lo mismo que `htmlCabecera` de web/app.js, a partir de
+//! IA, Archivos) con un chip-resumen por pieza (el % libre, las baterías, las habilidades, los
+//! documentos…), lo mismo que `htmlCabecera`/`htmlChip` de web/app.js, a partir de
 //! /api/estado. Al abrir, la página toma el relevo. Una pieza que no se conoce aquí sale con
 //! su icono (lo da /api/burbujas).
 use ab_glyph::{point, Font, FontArc, PxScale, ScaleFont};
@@ -97,6 +97,10 @@ enum Pieza {
   Punto {
     color: Rgba,
   },
+  /// el muñequito del asistente (el mismo dibujo de pixelesMuneco en web/app.js, quieto)
+  Muneco {
+    estado: String,
+  },
   Relleno,
   /// grupo que se reparte el ancho con los demás grupos (los dispositivos)
   Grupo(Vec<Pieza>),
@@ -104,6 +108,7 @@ enum Pieza {
 
 struct Paleta {
   primario: Rgba,
+  sobre_primario: Rgba,
   terciario: Rgba,
   error: Rgba,
   exito: Rgba,
@@ -119,6 +124,7 @@ fn paleta(estado: &Value) -> Paleta {
   let t = &estado["tema"]["colores"];
   Paleta {
     primario: color(t, "primary", "#b7c4ff"),
+    sobre_primario: color(t, "onPrimary", "#1f2c61"),
     terciario: color(t, "tertiary", "#f1b3e6"),
     error: color(t, "error", "#ffb4ab"),
     exito: color(t, "success", "#b5ccba"),
@@ -156,8 +162,9 @@ fn nivel(d: &Value) -> &'static str {
   }
 }
 
-/// El chip-resumen de una pieza (lo que va en su parte de la píldora) y si pide atención.
-fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> (Vec<Pieza>, bool) {
+/// El chip-resumen de una pieza y si pide atención. `entero`: la pieza sola en su grupo, con el
+/// ancho de toda la píldora (como `htmlChip(id, true)`); si no, el chip corto de las pestañas.
+fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta, entero: bool) -> (Vec<Pieza>, bool) {
   let es = estado["idioma"].as_str() != Some("en");
   let t = |a: &str, b: &str| if es { a.to_string() } else { b.to_string() };
   let tenue = |texto: String| Pieza::Texto {
@@ -166,14 +173,32 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
     fuente: 0,
     color: p.texto_var,
   };
+  let num = |texto: String, color: Rgba, chico: bool| Pieza::Texto {
+    texto,
+    tam: if chico { 12.0 } else if entero { 16.0 } else { 15.0 },
+    fuente: 1,
+    color,
+  };
+  let icono = |nombre: &str, color: Rgba| Pieza::Icono {
+    nombre: nombre.into(),
+    tam: 19.0,
+    color,
+  };
   let color_libre = |v: &Value| match v["libre"].as_f64() {
     None => p.contorno,
     Some(l) if l <= 10.0 => p.error,
     Some(l) if l <= 25.0 => p.terciario,
     _ => p.primario,
   };
+  let lista = |v: &Value| v.as_array().cloned().unwrap_or_default();
+  let cuantos = |v: &Value, estados: &[&str]| {
+    lista(v)
+      .iter()
+      .filter(|x| estados.contains(&x["estado"].as_str().unwrap_or("")))
+      .count()
+  };
   match pieza.nombre.as_str() {
-    "ia" => {
+    "uso" => {
       let ia = &estado["ia"];
       let provs: Vec<&str> = ["claude", "codex"].into_iter().filter(|x| !ia[*x].is_null()).collect();
       let prov = ia["principal"]
@@ -183,6 +208,37 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
         .unwrap_or("");
       let datos = &ia[prov];
       let v5 = &datos["limites"]["cinco_horas"];
+      let col = color_libre(v5);
+      let trabajando = datos["cinta"][0]["t"]
+        .as_f64()
+        .map(|x| ahora - x < 25.0)
+        .unwrap_or(false);
+      let punto = Pieza::Punto {
+        color: if trabajando { p.terciario } else { p.contorno_var },
+      };
+      let mut l = vec![
+        Pieza::Anillo {
+          valor: v5["libre"].as_f64().map(|x| x as f32 / 100.0).unwrap_or(0.0),
+          color: col,
+        },
+        num(
+          v5["libre"].as_f64().map(|x| format!("{}%", x.round())).unwrap_or("—".into()),
+          col,
+          false,
+        ),
+      ];
+      if !entero {
+        l.push(punto);
+        return (l, false);
+      }
+      l.push(tenue(if prov.is_empty() {
+        t("sin Claude ni Codex", "no Claude or Codex")
+      } else if v5.is_null() {
+        t("sin lectura", "no data")
+      } else {
+        t("libre", "left")
+      }));
+      l.push(Pieza::Relleno);
       let modelo = datos["modelo_actual"].as_str().unwrap_or("");
       let fam = if modelo.is_empty() {
         ""
@@ -191,23 +247,6 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
       } else {
         modelo.split(' ').next().unwrap_or("")
       };
-      let col = color_libre(v5);
-      let mut l = vec![
-        Pieza::Anillo {
-          valor: v5["libre"].as_f64().map(|x| x as f32 / 100.0).unwrap_or(0.0),
-          color: col,
-        },
-        Pieza::Texto {
-          texto: v5["libre"]
-            .as_f64()
-            .map(|x| format!("{}%", x.round()))
-            .unwrap_or("—".into()),
-          tam: 16.0,
-          fuente: 1,
-          color: col,
-        },
-        Pieza::Relleno,
-      ];
       if !fam.is_empty() {
         let (icono, c) = match fam {
           "Opus" => ("diamond", p.primario),
@@ -231,20 +270,11 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
           color: p.texto_var,
         });
       }
-      let trabajando = datos["cinta"][0]["t"]
-        .as_f64()
-        .map(|x| ahora - x < 25.0)
-        .unwrap_or(false);
-      l.push(Pieza::Punto {
-        color: if trabajando { p.terciario } else { p.contorno_var },
-      });
+      l.push(punto);
       (l, false)
     }
     "dispositivos" => {
-      let lista = estado["dispositivos"]["dispositivos"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+      let lista = lista(&estado["dispositivos"]["dispositivos"]);
       let alerta = lista
         .iter()
         .any(|d| nivel(d) == "bajo" && d["cargando"].as_bool() != Some(true));
@@ -309,35 +339,91 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
         .collect();
       (grupos, alerta)
     }
+    "asistente" => {
+      let a = &estado["asistente"];
+      let error = a["historial"][0]["error"].as_bool() == Some(true)
+        || a["historial"][0]["error"].is_string();
+      let fase = if a.is_null() {
+        "pausa".to_string()
+      } else if error && a["historial"][0]["t"].as_f64().map(|x| ahora - x < 8.0).unwrap_or(false) {
+        "error".to_string()
+      } else {
+        a["estado"].as_str().unwrap_or("pausa").to_string()
+      };
+      (vec![Pieza::Muneco { estado: fase }], false)
+    }
+    "modelos" => {
+      let m = &estado["modelos"];
+      let listo = m["listo"].as_bool() == Some(true);
+      let d = &m["ollama"]["descarga"];
+      let bajando = d.is_object() && d["error"].is_null() && d["pct"].as_f64().unwrap_or(100.0) < 100.0;
+      let nombre = if bajando {
+        "progress_activity"
+      } else if listo {
+        "psychology"
+      } else {
+        "key"
+      };
+      let mut l = vec![icono(nombre, if listo { p.primario } else { p.terciario })];
+      if entero {
+        let texto = if !listo {
+          m["motivo"].as_str().unwrap_or("").to_string()
+        } else if m["modo"].as_str() == Some("local") {
+          m["local"]["texto"]
+            .as_str()
+            .filter(|x| !x.is_empty())
+            .or(m["local"]["vision"].as_str())
+            .unwrap_or("")
+            .to_string()
+        } else {
+          m["modelo"].as_str().unwrap_or("").to_string()
+        };
+        l.push(tenue(texto));
+      }
+      (l, false)
+    }
     "habilidades" => {
       let h = &estado["habilidades"];
-      (
-        vec![
-          Pieza::Icono {
-            nombre: "auto_awesome".into(),
-            tam: 19.0,
-            color: p.primario,
-          },
-          Pieza::Texto {
-            texto: h["total"].as_i64().map(|n| n.to_string()).unwrap_or("—".into()),
-            tam: 16.0,
-            fuente: 1,
-            color: p.texto_var,
-          },
-        ],
-        false,
-      )
+      let mut l = vec![
+        icono("auto_awesome", p.primario),
+        num(h["total"].as_i64().map(|n| n.to_string()).unwrap_or("—".into()), p.texto_var, false),
+      ];
+      if entero {
+        l.push(tenue(t("habilidades", "skills")));
+      }
+      (l, false)
+    }
+    "herramientas" => {
+      let h = &estado["herramientas"];
+      let texto = match (h["instaladas"].as_i64(), h["total"].as_i64()) {
+        (Some(a), Some(b)) => format!("{a}/{b}"),
+        _ => "—".into(),
+      };
+      let mut l = vec![icono("construction", p.primario), num(texto, p.texto_var, !entero)];
+      if entero {
+        l.push(tenue(t("herramientas", "tools")));
+      }
+      (l, false)
     }
     "documentos" => {
       let d = &estado["documentos"];
-      let trabajos = d["trabajos"].as_array().cloned().unwrap_or_default();
-      let activos = trabajos
-        .iter()
-        .filter(|x| matches!(x["estado"].as_str(), Some("cola" | "convirtiendo")))
-        .count();
+      let trabajos = lista(&d["trabajos"]);
+      let activos = cuantos(&d["trabajos"], &["cola", "convirtiendo"]);
+      let listo = d["listo"].as_bool() == Some(true);
+      let ic = icono("swap_horiz", if d.is_object() && !listo { p.contorno } else { p.primario });
+      if !entero {
+        let n = if d.is_null() {
+          "—".to_string()
+        } else if activos > 0 {
+          activos.to_string()
+        } else {
+          cuantos(&d["trabajos"], &["listo"]).to_string()
+        };
+        return (vec![ic, num(n, p.texto_var, false)], false);
+      }
       let texto = if d.is_null() {
         "—".into()
-      } else if d["listo"].as_bool() != Some(true) {
+      } else if !listo {
         t("Conversor sin instalar", "Converter not installed")
       } else if activos > 0 {
         format!("{}{activos}…", t("Convirtiendo ", "Converting "))
@@ -346,31 +432,48 @@ fn chip(pieza: &crate::forma::Pieza, estado: &Value, ahora: f64, p: &Paleta) -> 
       } else {
         t("Suelta un documento", "Drop a document")
       };
-      (
-        vec![
-          Pieza::Icono {
-            nombre: "swap_horiz".into(),
-            tam: 19.0,
-            color: p.primario,
-          },
-          tenue(texto),
-        ],
-        false,
-      )
+      (vec![ic, tenue(texto)], false)
+    }
+    "audio" => {
+      let a = &estado["audio"];
+      if let Some(desde) = a["grabacion"]["desde"].as_f64() {
+        let seg = (ahora - desde).max(0.0) as i64;
+        let reloj = if seg >= 3600 {
+          format!("{}:{:02}:{:02}", seg / 3600, seg % 3600 / 60, seg % 60)
+        } else {
+          format!("{}:{:02}", seg / 60, seg % 60)
+        };
+        return (
+          vec![
+            icono("radio_button_checked", p.error),
+            Pieza::Texto {
+              texto: reloj,
+              tam: 11.0,
+              fuente: 2,
+              color: p.error,
+            },
+          ],
+          false,
+        );
+      }
+      let trabajos = lista(&a["trabajos"]);
+      let actual = trabajos
+        .iter()
+        .find(|x| x["estado"].as_str() == Some("transcribiendo"));
+      let usa = a["usa"].as_bool().unwrap_or(!a["usa"].is_null());
+      let ic = icono("graphic_eq", if a.is_object() && !usa { p.contorno } else { p.primario });
+      let n = if a.is_null() {
+        num("—".into(), p.texto_var, false)
+      } else if let Some(x) = actual {
+        let texto = x["pct"].as_f64().map(|v| format!("{}%", v.round())).unwrap_or("…".into());
+        num(texto, p.primario, true)
+      } else {
+        num(cuantos(&a["trabajos"], &["listo"]).to_string(), p.texto_var, false)
+      };
+      (vec![ic, n], false)
     }
     // una pieza que esta versión no conoce: su icono, centrado
-    _ => (
-      vec![
-        Pieza::Relleno,
-        Pieza::Icono {
-          nombre: pieza.icono.clone(),
-          tam: 19.0,
-          color: p.primario,
-        },
-        Pieza::Relleno,
-      ],
-      false,
-    ),
+    _ => (vec![Pieza::Relleno, icono(&pieza.icono, p.primario), Pieza::Relleno], false),
   }
 }
 
@@ -458,6 +561,7 @@ fn ancho_pieza(l: &Lienzo, p: &Pieza) -> f32 {
     Pieza::Icono { tam, .. } => tam * s,
     Pieza::Chip { texto, .. } => 13.0 * s + 3.0 * s + l.ancho_texto(texto, 11.0, 1) + 14.0 * s,
     Pieza::Punto { .. } => 7.0 * s,
+    Pieza::Muneco { .. } => 24.0 * s,
     Pieza::Relleno => 0.0,
     Pieza::Grupo(hijos) => {
       hijos.iter().map(|h| ancho_pieza(l, h)).sum::<f32>() + 4.0 * s * (hijos.len().saturating_sub(1)) as f32
@@ -538,6 +642,25 @@ fn dibujar_pieza(l: &mut Lienzo, p: &Pieza, x: f32, cy: f32, fondo: &Paleta) {
           .fill_path(&c, &pintura(*color), FillRule::Winding, Transform::identity(), None);
       }
     }
+    Pieza::Muneco { estado } => {
+      // 13 × 14 «píxeles» en 24 × 26 lógicos
+      let (pw, ph) = (24.0 * s / 13.0, 26.0 * s / 14.0);
+      let y0 = cy - 13.0 * s;
+      for (fx, fy, c) in muneco(estado) {
+        let col = match c {
+          'o' => mezcla(fondo.primario, fondo.superficie, 0.15),
+          'b' => fondo.primario,
+          'l' => mezcla(fondo.primario, Rgba(255, 255, 255, 255), 0.6),
+          'e' | 'm' => fondo.sobre_primario,
+          'c' => alfa(fondo.terciario, 0.85),
+          'f' => fondo.terciario,
+          _ => mezcla(fondo.terciario, Rgba(255, 255, 255, 255), 0.7),
+        };
+        if let Some(r) = tiny_skia::Rect::from_xywh(x + fx as f32 * pw, y0 + fy as f32 * ph, pw + 0.3, ph + 0.3) {
+          l.px.fill_rect(r, &pintura(col), Transform::identity(), None);
+        }
+      }
+    }
     Pieza::Relleno => {}
     Pieza::Grupo(hijos) => {
       let mut x = x;
@@ -547,6 +670,66 @@ fn dibujar_pieza(l: &mut Lienzo, p: &Pieza, x: f32, cy: f32, fondo: &Paleta) {
       }
     }
   }
+}
+
+/// `a` en proporción `k` sobre `b` (como color-mix de CSS).
+fn mezcla(a: Rgba, b: Rgba, k: f32) -> Rgba {
+  let m = |x: u8, y: u8| (x as f32 * k + y as f32 * (1.0 - k)).round() as u8;
+  Rgba(m(a.0, b.0), m(a.1, b.1), m(a.2, b.2), 255)
+}
+
+const MUNECO: [&str; 14] = [
+  "......F......", ".....fFf.....", ".....fff.....", "......o......", "...ooooooo...", "..obbbbbbbo..",
+  ".obllbbbbbbo.", ".oblbbbbbbbo.", ".obbbbbbbbbo.", ".obbbbbbbbbo.", ".obcbbbbbcbo.", "..obbbbbbbo..",
+  "...ooooooo...", "...oo...oo...",
+];
+
+/// Los píxeles del muñequito según lo que hace el asistente (`pixelesMuneco` sin animar).
+fn muneco(estado: &str) -> Vec<(usize, usize, char)> {
+  let mut g: Vec<Vec<char>> = MUNECO.iter().map(|f| f.chars().collect()).collect();
+  let mut pon = |x: usize, y: usize, c: char| g[y][x] = c;
+  match estado {
+    "pausa" => [(3, 9), (4, 9), (8, 9), (9, 9)].into_iter().for_each(|(x, y)| pon(x, y, 'e')),
+    "pensando" => [(4, 7), (4, 8), (8, 7), (8, 8)].into_iter().for_each(|(x, y)| pon(x, y, 'e')),
+    "oyendo" | "confirmando" => [(4, 8), (5, 8), (4, 9), (5, 9), (7, 8), (8, 8), (7, 9), (8, 9)]
+      .into_iter()
+      .for_each(|(x, y)| pon(x, y, 'e')),
+    "error" => [(3, 8), (4, 9), (3, 10), (8, 8), (9, 9), (8, 10)]
+      .into_iter()
+      .for_each(|(x, y)| pon(x, y, 'e')),
+    _ => [(4, 8), (4, 9), (8, 8), (8, 9)].into_iter().for_each(|(x, y)| pon(x, y, 'e')),
+  }
+  if estado != "error" {
+    pon(6, 10, 'm');
+  }
+  match estado {
+    "pausa" => {
+      pon(6, 0, '.');
+      pon(5, 1, '.');
+      pon(7, 1, '.');
+      pon(6, 1, 'f');
+    }
+    "pensando" | "confirmando" => {
+      pon(6, 0, '.');
+      pon(5, 0, 'F');
+    }
+    "oyendo" => {
+      pon(4, 1, 'f');
+      pon(8, 1, 'f');
+      pon(5, 0, 'f');
+      pon(7, 0, 'f');
+    }
+    _ => {}
+  }
+  let mut r = Vec::new();
+  for (y, fila) in g.iter().enumerate() {
+    for (x, c) in fila.iter().enumerate() {
+      if *c != '.' {
+        r.push((x, y, *c));
+      }
+    }
+  }
+  r
 }
 
 /// Rectángulo con cada esquina redondeada a su radio: [arriba izq, arriba der, abajo der, abajo izq].
@@ -603,8 +786,9 @@ fn recortar(l: &Lienzo, texto: &str, tam: f32, fuente: u8, max: f32) -> String {
   String::new()
 }
 
-/// Dibuja las piezas de un chip dentro de su parte [x, x + ancho] de la fila.
-fn dibujar_chip(l: &mut Lienzo, lista: Vec<Pieza>, x: f32, ancho: f32, cy: f32, p: &Paleta) {
+/// Dibuja las piezas de un chip dentro de su parte [x, x + ancho] de la fila: a lo ancho con
+/// separación 8 (pieza sola) o centradas con separación 4 (el chip de una pestaña).
+fn dibujar_chip(l: &mut Lienzo, lista: Vec<Pieza>, x: f32, ancho: f32, cy: f32, p: &Paleta, entero: bool) {
   let s = l.s;
   let grupos = lista.iter().filter(|x| matches!(x, Pieza::Grupo(_))).count();
   if grupos > 0 {
@@ -616,7 +800,7 @@ fn dibujar_chip(l: &mut Lienzo, lista: Vec<Pieza>, x: f32, ancho: f32, cy: f32, 
     }
     return;
   }
-  let hueco = 8.0 * s;
+  let hueco = if entero { 8.0 } else { 4.0 } * s;
   let mut lista = lista;
   let fijos = |l: &Lienzo, lista: &[Pieza]| {
     lista.iter().map(|x| ancho_pieza(l, x)).sum::<f32>() + hueco * (lista.len().saturating_sub(1)) as f32
@@ -632,12 +816,9 @@ fn dibujar_chip(l: &mut Lienzo, lista: Vec<Pieza>, x: f32, ancho: f32, cy: f32, 
     }
   }
   let rellenos = lista.iter().filter(|x| matches!(x, Pieza::Relleno)).count();
-  let extra = if rellenos > 0 {
-    ((ancho - fijos(l, &lista)) / rellenos as f32).max(0.0)
-  } else {
-    0.0
-  };
-  let mut cx = x;
+  let libre = (ancho - fijos(l, &lista)).max(0.0);
+  let extra = if rellenos > 0 { libre / rellenos as f32 } else { 0.0 };
+  let mut cx = if rellenos > 0 || entero { x } else { x + libre / 2.0 };
   for pieza in &lista {
     dibujar_pieza(l, pieza, cx, cy, p);
     cx += ancho_pieza(l, pieza) + hueco + if matches!(pieza, Pieza::Relleno) { extra } else { 0.0 };
@@ -645,7 +826,8 @@ fn dibujar_chip(l: &mut Lienzo, lista: Vec<Pieza>, x: f32, ancho: f32, cy: f32, 
 }
 
 /// La fila de la píldora (sin fondo), horizontal, de `largo` × 38 lógicos: un chip por pieza,
-/// separados por una línea fina. Devuelve también dónde quedó cada pieza (lógico, a lo largo).
+/// centrados y separados 4 (`.b-fila.grupo` de web/estilo.css), o el de la única pieza a lo
+/// ancho. Devuelve también dónde quedó cada pieza (lógico, a lo largo).
 fn fila(
   f: &Forma,
   estado: &Value,
@@ -662,7 +844,6 @@ fn fila(
     f: fuentes,
     s,
   };
-  let (margen, entre) = (14.0 * s, 10.0 * s);
   let cy = h as f32 / 2.0;
   let mut partes = Vec::new();
   let mut alerta = false;
@@ -673,15 +854,21 @@ fn fila(
     l.texto(texto, (w as f32 - tw) / 2.0, cy, 11.0, 0, p.texto_var);
     return Some((px, false, partes));
   }
-  // el espacio útil se reparte según el ancho de cada chip
-  let util = w as f32 - 2.0 * margen - entre * (f.piezas.len() - 1) as f32;
-  let total: f32 = f.piezas.iter().map(|x| x.ancho as f32).sum::<f32>().max(1.0);
-  let mut x = margen;
+  if let [pieza] = f.piezas {
+    let margen = 14.0 * s;
+    let (lista, a) = chip(pieza, estado, ahora, p, true);
+    dibujar_chip(&mut l, lista, margen, w as f32 - 2.0 * margen, cy, p, true);
+    partes.push((pieza.nombre.clone(), 0.0, largo));
+    return Some((px, a, partes));
+  }
+  let entre = 4.0 * s;
+  let total: f32 = f.piezas.iter().map(|x| x.ancho as f32 * s).sum::<f32>() + entre * (f.piezas.len() - 1) as f32;
+  let mut x = ((w as f32 - total) / 2.0).max(0.0);
   for (i, pieza) in f.piezas.iter().enumerate() {
-    let ancho = util * pieza.ancho as f32 / total;
-    let (lista, a) = chip(pieza, estado, ahora, p);
+    let ancho = pieza.ancho as f32 * s;
+    let (lista, a) = chip(pieza, estado, ahora, p, false);
     alerta |= a;
-    dibujar_chip(&mut l, lista, x, ancho, cy, p);
+    dibujar_chip(&mut l, lista, x, ancho, cy, p, false);
     // la zona de la pieza llega hasta la mitad del espacio con sus vecinas
     let desde = if i == 0 { 0.0 } else { x - entre / 2.0 };
     let hasta = if i + 1 == f.piezas.len() {
@@ -690,13 +877,6 @@ fn fila(
       x + ancho + entre / 2.0
     };
     partes.push((pieza.nombre.clone(), desde / s, hasta / s));
-    if i + 1 < f.piezas.len() {
-      let sx = x + ancho + entre / 2.0;
-      if let Some(r) = tiny_skia::Rect::from_xywh(sx - 0.5 * s, cy - 8.0 * s, s, 16.0 * s) {
-        l.px
-          .fill_rect(r, &pintura(alfa(p.contorno_var, 0.8)), Transform::identity(), None);
-      }
-    }
     x += ancho + entre;
   }
   Some((px, alerta, partes))
@@ -807,7 +987,11 @@ mod pruebas {
         { "tipo": "audifonos", "conectado": true, "bateria": 15 },
         { "tipo": "celular", "conectado": true, "bateria": 47, "cargando": true } ] },
       "habilidades": { "total": 3 },
-      "documentos": { "listo": false, "trabajos": [] }
+      "herramientas": { "instaladas": 2, "total": 7, "lista": [] },
+      "modelos": { "listo": true, "modo": "api", "modelo": "claude-haiku", "ollama": {} },
+      "asistente": { "estado": "pausa", "historial": [] },
+      "documentos": { "listo": false, "trabajos": [] },
+      "audio": { "usa": true, "grabacion": {}, "trabajos": [{ "estado": "transcribiendo", "pct": 40 }] }
     })
   }
 
@@ -831,17 +1015,23 @@ mod pruebas {
   fn dibuja_los_grupos() {
     let Some(fuentes) = fuentes() else { return }; // sin las fuentes de prueba no hay nada que mirar
     let carpeta = std::env::var("AKARI_CAPTURAS").ok();
-    let equipo = vec![pieza("dispositivos", "devices", 232.0)];
-    let ia = vec![pieza("ia", "bolt", 206.0), pieza("habilidades", "auto_awesome", 56.0)];
-    let archivos = vec![
-      pieza("documentos", "swap_horiz", 150.0),
-      pieza("cerebro", "notes", 28.0),
+    // los grupos de akari/grupos.py
+    let equipo = vec![pieza("dispositivos", "devices", 254.0)];
+    let ia = vec![
+      pieza("asistente", "chat", 48.0),
+      pieza("uso", "bolt", 92.0),
+      pieza("modelos", "psychology", 44.0),
+      pieza("habilidades", "auto_awesome", 58.0),
+      pieza("herramientas", "construction", 64.0),
     ];
+    let archivos = vec![pieza("documentos", "swap_horiz", 58.0), pieza("audio", "graphic_eq", 72.0)];
+    let uso = vec![pieza("uso", "bolt", 300.0)];
     for (nombre, piezas, ancho, vertical, borde) in [
-      ("equipo", &equipo, 260.0, false, ""),
-      ("ia", &ia, 300.0, false, ""),
-      ("archivos", &archivos, 216.0, false, ""),
-      ("ia-v", &ia, 300.0, true, "izquierda"),
+      ("equipo", &equipo, 274.0, false, ""),
+      ("ia", &ia, 342.0, false, ""),
+      ("archivos", &archivos, 154.0, false, ""),
+      ("uso", &uso, 300.0, false, ""),
+      ("ia-v", &ia, 342.0, true, "izquierda"),
     ] {
       let f = Forma {
         piezas,
@@ -853,7 +1043,7 @@ mod pruebas {
       };
       let (px, partes) = dibujar(&f, &estado(), 10_000.0 - 7_800.0, 1.5, &fuentes).expect("dibujo");
       if vertical {
-        assert_eq!((px.width(), px.height()), (57, 450));
+        assert_eq!((px.width(), px.height()), (57, 513));
       } else {
         assert_eq!((px.width(), px.height()), ((ancho * 1.5) as u32, 57));
         assert_eq!(px.pixel(0, px.height() - 1).unwrap().alpha(), 0); // esquina redondeada
@@ -870,18 +1060,21 @@ mod pruebas {
         px.save_png(format!("{c}/{nombre}.png")).unwrap();
       }
     }
-    // la de IA: la pieza "ia" a la izquierda, habilidades a la derecha
+    // la de IA: el asistente a la izquierda, luego el uso…
     let f = Forma {
       piezas: &ia,
-      ancho: 300.0,
+      ancho: 342.0,
       vertical: false,
       borde: "",
       pegada_arriba: true,
       pegada_abajo: false,
     };
     let (_, partes) = dibujar(&f, &estado(), 0.0, 1.0, &fuentes).unwrap();
-    assert_eq!(partes[0].0, "ia");
+    assert_eq!(partes[1].0, "uso");
     assert!(partes[0].2 < partes[1].2);
+    // …con los chips donde los pone la web: 10 de margen, cada uno de su ancho y 4 entre ellos
+    assert!((partes[1].1 - (10.0 + 48.0 + 2.0)).abs() < 0.5, "{partes:?}");
+    assert!(muneco("pausa").contains(&(3, 9, 'e')) && !muneco("hablando").contains(&(3, 9, 'e')));
     // sin servicio todavía
     assert!(dibujar(&f, &Value::Null, 0.0, 1.0, &fuentes).is_some());
   }

@@ -108,7 +108,8 @@ jobs:
       - name: El servicio de la app
         run: |
           $b = Invoke-RestMethod http://127.0.0.1:47830/api/burbujas
-          "$($b.burbujas.Count) burbujas: $(($b.burbujas | ForEach-Object nombre) -join ', ') · reposo: $($b.reposo)"
+          "$($b.grupos.Count) grupos: $(($b.grupos | ForEach-Object { "$($_.id) [$(($_.piezas | ForEach-Object id) -join "/")]" }) -join ", ") · reposo: $($b.reposo)"
+          if ($b.grupos.Count -ne 3) { throw "se esperaban los tres grupos de AGENTS.md" }
       - name: Cerrar la app de golpe cierra también el servicio
         run: |
           $m = Get-Content medicion.json | ConvertFrom-Json

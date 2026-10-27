@@ -1,10 +1,11 @@
-// Comunicación de la página con la ventana que la contiene. Es lo único que cambia entre apps:
+// Comunicación de la página con la ventana que la contiene. Es lo único que cambia entre apps;
+// app.js usa siempre window.akari (burbuja, alCambiarForma, alternarPanel, rutaDe):
 //  * Electron (app/, Linux X11 y GNOME): app/preload.js expone window.akari;
-//  * Tauri (escritorio/, Windows): invoke() de Tauri para avisar y, de vuelta, la app llama a
-//    window.__akariForma(forma) con eval;
+//  * Tauri (escritorio/, Windows): este archivo lo arma con invoke() de Tauri para avisar y, de
+//    vuelta, la app llama a window.__akariForma(forma) con eval;
 //  * un navegador cualquiera: no hay ventana que mover, todo queda en nada.
-// También da window.akari.rutaDe(file): la ruta real de un archivo soltado, para que lo que se
-// genere (p. ej. el .md de un documento) quede junto al original.
+// rutaDe(file) da la ruta real de un archivo soltado, para que lo que se genere (p. ej. el .md
+// de un documento) quede junto al original. Se carga antes que app.js (web/index.html).
 const electron = window.akari;
 const tauri = window.__TAURI_INTERNALS__;
 let alCambiar = null;
@@ -51,7 +52,12 @@ document.addEventListener("dragenter", (e) => {
 // normal con File de verdad, y rutaDe(file) devuelve la ruta de cada uno.
 if (tauri && !electron) {
   const rutas = new WeakMap();
-  window.akari = { rutaDe: (archivo) => rutas.get(archivo) || "" };
+  window.akari = {
+    burbuja: ventana.burbuja,
+    alCambiarForma: ventana.alCambiarForma,
+    alternarPanel: ventana.alternarPanel,
+    rutaDe: (archivo) => rutas.get(archivo) || "",
+  };
   window.__akariArrastre = ({ tipo, rutas: lista, x, y }) => {
     const dt = new DataTransfer();
     for (const ruta of lista || []) {
@@ -67,8 +73,43 @@ if (tauri && !electron) {
   };
 }
 
-// Tauri puede mandar la forma antes de que cargue este módulo: se guarda hasta que haya a quién dársela
-window.__akariForma = (forma) => {
+// Tauri, al abrir un grupo desde su píldora nativa: en la pieza cuyo chip tenía el puntero. Es lo
+// mismo que pasar el puntero por ese chip de la cabecera (app.js), que solo cambia de pieza con la
+// burbuja aún cerrada: si los chips no están dibujados todavía (la página recién cargada espera
+// sus datos), la forma abierta se guarda hasta que estén (como mucho 1,5 s).
+let piezaPendiente = null, formaRetenida = null;
+function entregar(forma) {
   if (alCambiar) alCambiar(forma);
   else window.__akariFormaPendiente = forma;
+}
+function pasarPorChip(pieza) {
+  const chip = document.querySelector(`#b-fila .b-pieza[data-pieza="${CSS.escape(pieza)}"]`);
+  if (chip) chip.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+  return !!chip;
+}
+function soltarForma() {
+  piezaPendiente = null;
+  const f = formaRetenida;
+  formaRetenida = null;
+  if (f) entregar(f);
+}
+window.__akariPieza = (pieza) => {
+  const fila = document.querySelector("#b-fila");
+  if (!fila || pasarPorChip(pieza)) return;
+  piezaPendiente = pieza;
+  const espera = new MutationObserver(() => {
+    if (piezaPendiente !== pieza) return espera.disconnect();
+    if (pasarPorChip(pieza)) {
+      espera.disconnect();
+      soltarForma();
+    }
+  });
+  espera.observe(fila, { childList: true });
+  setTimeout(() => { espera.disconnect(); if (piezaPendiente === pieza) soltarForma(); }, 1500);
+};
+
+// Tauri puede mandar la forma antes de que cargue app.js: se guarda hasta que haya a quién dársela
+window.__akariForma = (forma) => {
+  if (piezaPendiente && forma.abierta) formaRetenida = forma;
+  else entregar(forma);
 };
