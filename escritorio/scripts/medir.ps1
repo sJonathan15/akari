@@ -149,6 +149,68 @@ if ($TrasUso -gt 0) {
   $tras = [math]::Round(((Procesos $app.Id) | Measure-Object WorkingSet64 -Sum).Sum / 1MB, 1)
 }
 
+# ------------------------------------------------------------ recorrido por los grupos (capturas)
+# Después de medir, para que no cambie los números: todo cerrado y cada grupo abierto, con sus medidas;
+# las píldoras no deben encimarse ni salirse de la pantalla.
+$visita = $null
+if ($Raton -and $Captura) {
+  $base = [IO.Path]::GetFileNameWithoutExtension($Captura)
+  $todo = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  function Foto($nombre) {
+    $bmp = New-Object System.Drawing.Bitmap $todo.Width, $todo.Height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($todo.Left, $todo.Top, 0, 0, $bmp.Size)
+    $bmp.Save("$base-$nombre.png", [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose(); $bmp.Dispose()
+  }
+  Mover ($pantalla.Left + 30) ($pantalla.Bottom - 30)
+  Start-Sleep -Seconds 2
+  $pildoras = @(Rects $app.Id | Where-Object { $_[2] -gt 20 -and $_[3] -gt 20 } | Sort-Object { $_[0] })
+  Foto 'cerradas'
+  $encimadas = 0
+  for ($a = 0; $a -lt $pildoras.Count; $a++) {
+    for ($b = $a + 1; $b -lt $pildoras.Count; $b++) {
+      $x = $pildoras[$a]; $y = $pildoras[$b]
+      if ($x[0] -lt $y[0] + $y[2] -and $y[0] -lt $x[0] + $x[2] -and $x[1] -lt $y[1] + $y[3] -and $y[1] -lt $x[1] + $x[3]) { $encimadas++ }
+    }
+  }
+  $fuera = @($pildoras | Where-Object { $_[0] -lt $todo.Left -or $_[1] -lt $todo.Top -or $_[0] + $_[2] -gt $todo.Right -or $_[1] + $_[3] -gt $todo.Bottom }).Count
+  $grupos = @()
+  $n = 0
+  foreach ($p in $pildoras) {
+    $n++
+    $px = $p[0] + [int]($p[2] / 2); $py = $p[1] + [int]($p[3] / 2)
+    Mover $px $py
+    $abierta = $null
+    foreach ($i in 1..27) {
+      Start-Sleep -Milliseconds 300
+      $abierta = Rects $app.Id | Where-Object { $_[0] -le $px -and $_[0] + $_[2] -ge $px -and $_[1] -le $py -and $_[3] -gt $p[3] * 2 } | Select-Object -First 1
+      if ($abierta) { break }
+    }
+    Start-Sleep -Milliseconds 900
+    Foto "grupo$n"
+    $grupos += [ordered]@{ pildora = $p; abierta = $abierta
+                           cabe = [bool]($abierta -and $abierta[1] + $abierta[3] -le $todo.Bottom -and $abierta[0] -ge $todo.Left -and $abierta[0] + $abierta[2] -le $todo.Right) }
+    Mover ($pantalla.Left + 30) ($pantalla.Bottom - 30)
+    Start-Sleep -Seconds 2
+  }
+  $visita = [ordered]@{ pantalla = @($todo.Width, $todo.Height); pildoras = $pildoras; encimadas = $encimadas; fuera = $fuera; grupos = $grupos }
+  # una sola imagen (el CI sube captura.png): todo cerrado y cada grupo abierto, en una cuadrícula de 2 columnas
+  $fotos = @("$base-cerradas.png") + @(1..$n | ForEach-Object { "$base-grupo$_.png" })
+  $ancho = [int]($todo.Width / 2); $alto = [int]($todo.Height / 2)
+  $hoja = New-Object System.Drawing.Bitmap ($ancho * 2), ($alto * [math]::Ceiling($fotos.Count / 2))
+  $g = [System.Drawing.Graphics]::FromImage($hoja)
+  $g.Clear([System.Drawing.Color]::Black)
+  for ($i = 0; $i -lt $fotos.Count; $i++) {
+    $img = [System.Drawing.Image]::FromFile((Resolve-Path $fotos[$i]))
+    $g.DrawImage($img, ($i % 2) * $ancho, [math]::Floor($i / 2) * $alto, $ancho, $alto)
+    $img.Dispose()
+  }
+  $g.Dispose()
+  $hoja.Save($Captura, [System.Drawing.Imaging.ImageFormat]::Png)
+  $hoja.Dispose()
+}
+
 $datos = [ordered]@{
   app = $Nombre
   ram_ws_mb = [math]::Round($ws / 1MB, 1)
@@ -161,6 +223,7 @@ $datos = [ordered]@{
   nucleos = $nucleos
   ventanas = @($rects | ForEach-Object { , @($_) })
   raton = $prueba
+  visita = $visita
   pid = $app.Id
 }
 $datos | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Salida
