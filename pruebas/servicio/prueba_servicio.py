@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
-URL = "http://127.0.0.1:47830"
+URL = f"http://127.0.0.1:{os.environ.get('AKARI_PUERTO') or 47830}"     # otro puerto si akari ya está corriendo
 
 
 class Servicio(unittest.TestCase):

@@ -167,6 +167,8 @@ def leer_usb():
 def leer_leds(sysfs):
     """Bloq Mayús / Bloq Num de un teclado USB (LEDs del kernel bajo su carpeta en /sys)."""
     estado = {}
+    if not sysfs:           # aparatos que no vienen de /sys (los de Windows)
+        return estado
     for led in Path("/sys/class/leds").glob("input*::*"):
         try:
             if not str(led.resolve()).startswith(sysfs + "/"):
