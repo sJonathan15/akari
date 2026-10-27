@@ -18,7 +18,7 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
 | 5 | Pieza «Cerebro» en el grupo Archivos (estado + buscador + abrir) | ✅ hecho (web probada con Playwright; QML escrita, sin Quickshell para probarla aquí) |
 | 6 | Búsqueda por significado (embeddings de Ollama) + tarjeta «Modelos de IA» | ✅ hecho (probado con un Ollama falso en las pruebas; falta probar con el real) |
 | 7 | Ganchos opt-in (Claude Code SessionStart/SessionEnd, AGENTS.md de Codex) | ✅ hecho (probado a mano) |
-| 8 | Recorrido de bienvenida (fase final) | ⬜ falta |
+| 8 | Recorrido de bienvenida (fase final) | 🟡 a medias: servicio, API, `akari recorrido` y prueba hechos; falta la tarjeta en burbujas/panel/cápsulas |
 | — | Pruebas automáticas (`pruebas/servicio/prueba_cerebro.py`, 11 pruebas) | ✅ hecho |
 
 ## Archivos
@@ -52,6 +52,22 @@ si la carpeta elegida ya tiene cosas, en su subcarpeta `akari/`).
   carpeta, «En qué quedamos», botones Obsidian / Revisar / Conectar / Elegir carpetas (abre el panel).
 - `web/index.html`, `web/app.js` (`dibujarCerebro`, `htmlCerebroPrimera`, buscador fijo `#cer-buscador`
   que no se redibuja mientras se escribe, «Preguntar»), `web/estilo.css` (`.cer-*`).
+
+## Recorrido de bienvenida
+
+- `akari/recorrido.py`: `PASOS` (10: bienvenida, mover, IA, modelos, dispositivos, habilidades, documentos,
+  asistente —solo si existe la pieza `asistente`—, cerebro, listo), cada uno con `grupo`, `pieza`, `resalta`
+  (selector CSS para la web) y `desde` (versión que lo trajo: al actualizar se muestran solo los nuevos).
+  Estado en `~/.config/akari/recorrido.json`; arranca solo la primera vez. Acciones por paso
+  (`{texto, ruta, cuerpo}` que la tarjeta manda tal cual, o `{texto, pieza}`): descargar el modelo
+  recomendado, pegar una clave, instalar una habilidad recomendada, crear el cerebro. «Primeros pasos»
+  (modelo, conversión, pregunta, cerebro) en `recorrido.primeros`. Voz con Piper si hay `piper` y un
+  `*.onnx` en `DATOS/voces/`.
+- `akari/servidor.py`: `"recorrido"` en `/api/estado`, `GET/POST /api/recorrido`; una pregunta al cerebro marca
+  «hacer una pregunta». `akari/__main__.py`: `akari recorrido` (reinicia y abre la interfaz).
+- La bandeja de la app (`app/`, otra sesión) solo tiene que mandar `POST /api/recorrido {"accion": "reiniciar"}`
+  o correr `akari recorrido`.
+- Prueba: `pruebas/servicio/prueba_recorrido.py`.
 
 ## Cómo se prueba
 
@@ -103,5 +119,9 @@ python3 bin/akari.py cerebro conectar && python3 bin/akari.py cerebro desconecta
 1. Probar `capsulas/PiezaCerebro.qml` en Quickshell de verdad (`AKARI_ABIERTA=1 qs -p capsulas`).
 2. Probar la búsqueda por significado con un Ollama real + `embeddinggemma:300m` (aquí no se pudo bajar Ollama;
    la prueba usa `OllamaFalso` en `prueba_cerebro.py`, que imita `/api/tags`, `/api/show` y `/api/embed`).
-3. Recorrido de bienvenida (`akari/recorrido.py`, `GET/POST /api/recorrido`, tarjeta en cápsulas/burbujas,
-   `akari recorrido`, «Primeros pasos»).
+3. Tarjeta del recorrido: en `web/app.js` un `#recorrido` arriba del panel y del cuerpo de la burbuja
+   (`«n de total»`, título, texto, Anterior / Siguiente / Saltar, acciones, interruptor de voz), que en la
+   burbuja del grupo del paso abre la pieza con `window.akari.burbuja("abrir")` y no la deja cerrarse, y
+   resalta `paso.resalta` con la clase `.resaltado`; «Primeros pasos» y «Ver recorrido» en el panel. En QML,
+   `TarjetaRecorrido.qml` arriba del cuerpo de `CapsulaGrupo.qml`, que abre el grupo del paso.
+4. Capturas en modo demo de cada paso (`AKARI_DEMO=1`) para el README y el PR.

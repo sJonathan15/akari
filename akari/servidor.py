@@ -15,6 +15,8 @@ POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Ak
 POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
 POST /api/cerebro         {"accion", ...}           (mapa y memoria para la IA, ver cerebro.py)
+GET  /api/recorrido       el recorrido de bienvenida (también en /api/estado → "recorrido")
+POST /api/recorrido       {"accion": "siguiente"|"anterior"|"saltar"|"reiniciar"|"ir"|"voz"|"cerrar_primeros"}
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -34,6 +36,7 @@ from .modelos import MonitorModelos
 from .documentos import Conversor
 from .audio import Transcriptor, es_audio
 from .cerebro import MonitorCerebro
+from .recorrido import Recorrido
 from .tema import Tema
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"
@@ -56,6 +59,7 @@ class Servicio:
         self.documentos = Conversor(self.cambio)
         self.audio = Transcriptor(self.cambio, self.modelos)
         self.cerebro = MonitorCerebro(self.cambio, self.modelos)
+        self.recorrido = Recorrido(self.cambio)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -73,10 +77,13 @@ class Servicio:
         base = {"version": VERSION, "idioma": IDIOMA, "ahora": time.time(), "tema": self.tema.valor,
                 "sistema": "windows" if WINDOWS else "linux"}
         if DEMO:
-            return {**base, **demo.estado(), "demo": True}
-        return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
-                "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
-                "herramientas": self.herramientas.estado, "cerebro": self.cerebro.estado}
+            e = {**base, **demo.estado(), "demo": True}
+        else:
+            e = {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
+                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
+                 "herramientas": self.herramientas.estado, "cerebro": self.cerebro.estado}
+        e["recorrido"] = self.recorrido.estado(e)
+        return e
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -118,6 +125,8 @@ def crear_manejador(servicio):
                 return self._json(servicio.estado())
             if ruta == "/eventos":
                 return self._eventos()
+            if ruta == "/api/recorrido":
+                return self._json(servicio.estado()["recorrido"])
             if ruta == "/api/burbujas":       # ?todas=1: también las ocultas (el panel las muestra todas)
                 return self._json(grupos.burbujas(todas="todas=1" in self.path))
             base, carpeta = ("/modelos/", ESTATICOS["/modelos/"]) if ruta.startswith("/modelos/") else ("/", ESTATICOS["/"])
@@ -163,7 +172,12 @@ def crear_manejador(servicio):
                 ok, mensaje = servicio.herramientas.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/cerebro":
+                if datos.get("accion") == "pregunta":
+                    servicio.recorrido.marcar("pregunta")
                 return self._json(demo.cerebro_accion(datos) if DEMO else servicio.cerebro.accion(datos))
+            if ruta == "/api/recorrido":
+                ok, mensaje = servicio.recorrido.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje, "recorrido": servicio.estado()["recorrido"]})
             if ruta == "/api/audio":
                 ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
