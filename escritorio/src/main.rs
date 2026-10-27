@@ -234,6 +234,12 @@ fn crear_burbuja(app: &AppHandle, m: Medidas, guardada: Option<Posicion>) {
     .lock()
     .unwrap()
     .insert(nombre.clone(), Burbuja::new(m, guardada.as_ref()));
+  {
+    let (_, _, w, _, _) = area(app);
+    let estado = app.state::<Arc<App>>();
+    let mut lista = estado.burbujas.lock().unwrap();
+    forma::acomodar(&mut lista.values_mut().collect::<Vec<_>>(), w);
+  }
   if cerradas::activo(app) {
     cerradas::crear(app, &nombre); // WebView2 solo cuando se abra
   } else {
@@ -535,6 +541,7 @@ fn recolocar_todas(app: &AppHandle) {
   let nombres: Vec<String> = {
     let mut lista = estado.burbujas.lock().unwrap();
     lista.values_mut().for_each(|b| b.recolocar(w, h));
+    forma::acomodar(&mut lista.values_mut().collect::<Vec<_>>(), w);
     lista.keys().cloned().collect()
   };
   for nombre in nombres {
@@ -805,6 +812,9 @@ fn arrancar(app: AppHandle) {
     // las ventanas se crean en el hilo de la interfaz
     let _ = app.run_on_main_thread(move || crear_burbuja(&app2, m, p));
   }
+  // las primeras se colocaron antes de conocer a las demás: si no caben, se reparten
+  let app2 = app.clone();
+  let _ = app.run_on_main_thread(move || recolocar_todas(&app2));
   informar_abiertas(&app);
 }
 

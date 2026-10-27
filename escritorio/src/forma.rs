@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub const ALTO: f64 = 38.0; // grosor de la burbuja cerrada
 pub const MARGEN_BORDE: f64 = 40.0; // a esta distancia de un lado se vuelve pestaña vertical
 const CERCA_BORDE: f64 = 200.0; // cerca de un borde se despliega hacia el otro lado
+const ALTO_PANTALLA: f64 = 0.7; // abierta, como mucho esta parte del alto de la pantalla
+const SEPARACION: f64 = 8.0; // entre píldoras cuando no caben en su sitio de fábrica
 
 /// Un grupo, como lo da el servicio (GET /api/burbujas → "grupos", akari/grupos.py).
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -108,12 +110,35 @@ pub struct Burbuja {
   pub m: Medidas,
   /// None = posición de fábrica
   pub cx: Option<f64>,
+  /// la de fábrica cuando las de fábrica no caben en la pantalla (ver `acomodar`)
+  pub x_fila: Option<f64>,
   pub cy: f64,
   pub borde: String,
   pub abierta: bool,
   pub moviendo: bool,
   pub alto_cuerpo: f64,
   inicio: (f64, f64),
+}
+
+/// Las que están en su sitio de fábrica cuelgan del centro; si en esta pantalla se salen o se
+/// enciman (p. ej. 1024 px de ancho), van en una fila centrada, sin encimarse.
+pub fn acomodar(lista: &mut [&mut Burbuja], ancho: f64) {
+  for b in lista.iter_mut() {
+    b.x_fila = None;
+  }
+  let mut fila: Vec<usize> = (0..lista.len()).filter(|&i| lista[i].cx.is_none() && !lista[i].vertical()).collect();
+  fila.sort_by(|&a, &b| lista[a].x(ancho).total_cmp(&lista[b].x(ancho)));
+  let cabe = fila.iter().all(|&i| lista[i].x(ancho) >= 0.0 && lista[i].x(ancho) + lista[i].m.ancho_cerrado <= ancho)
+    && fila.windows(2).all(|p| lista[p[0]].x(ancho) + lista[p[0]].m.ancho_cerrado <= lista[p[1]].x(ancho));
+  if cabe {
+    return;
+  }
+  let total: f64 = fila.iter().map(|&i| lista[i].m.ancho_cerrado).sum::<f64>() + SEPARACION * fila.len().saturating_sub(1) as f64;
+  let mut x = ((ancho - total) / 2.0).max(0.0).round();
+  for &i in &fila {
+    lista[i].x_fila = Some(x);
+    x += lista[i].m.ancho_cerrado + SEPARACION;
+  }
 }
 
 fn limitar(v: f64, min: f64, max: f64) -> f64 {
@@ -124,6 +149,7 @@ impl Burbuja {
   pub fn new(m: Medidas, guardada: Option<&Posicion>) -> Self {
     Burbuja {
       cx: guardada.map(|p| p.x),
+      x_fila: None,
       cy: guardada.map(|p| p.y).unwrap_or(0.0),
       borde: guardada.map(|p| p.borde.clone()).unwrap_or_default(),
       m,
@@ -162,7 +188,7 @@ impl Burbuja {
   }
 
   pub fn x(&self, ancho: f64) -> f64 {
-    self.cx.unwrap_or(if self.m.lado == "derecha" {
+    self.cx.or(self.x_fila).unwrap_or(if self.m.lado == "derecha" {
       (ancho / 2.0 + self.m.hueco).round()
     } else {
       (ancho / 2.0 - self.m.hueco - self.m.ancho_cerrado).round()
@@ -189,7 +215,7 @@ impl Burbuja {
     self.cy + ALTO / 2.0 > alto / 2.0
   }
   fn alto_abierto(&self, alto: f64) -> f64 {
-    let disponible = ALTO.max(self.m.alto_maximo.min(if self.hacia_arriba(alto) {
+    let disponible = ALTO.max(self.m.alto_maximo.min((alto * ALTO_PANTALLA).round()).min(if self.hacia_arriba(alto) {
       self.cy + ALTO
     } else {
       alto - self.cy
@@ -368,8 +394,36 @@ mod pruebas {
         h: 438.0
       }
     );
-    b.alto_cuerpo = 5000.0; // no pasa de su máximo
-    assert_eq!(b.limites(1920.0, 1040.0).h, 760.0);
+    b.alto_cuerpo = 5000.0; // no pasa de su máximo ni del 70 % de la pantalla
+    assert_eq!(b.limites(1920.0, 1040.0).h, 728.0);
+    assert_eq!(b.limites(1920.0, 2160.0).h, 760.0);
+    assert_eq!(b.limites(1024.0, 728.0).h, 510.0);
+  }
+
+  fn de_fabrica_en(ancho: f64) -> Vec<Rect> {
+    let mut todas: Vec<Burbuja> = de_fabrica().into_iter().map(|m| Burbuja::new(m, None)).collect();
+    let mut refs: Vec<&mut Burbuja> = todas.iter_mut().collect();
+    acomodar(&mut refs, ancho);
+    let mut r: Vec<Rect> = todas.iter().map(|b| b.limites(ancho, 728.0)).collect();
+    r.sort_by(|a, b| a.x.total_cmp(&b.x));
+    r
+  }
+
+  #[test]
+  fn en_pantalla_chica_caben_sin_encimarse() {
+    for ancho in [1024.0, 1280.0, 1366.0] {
+      let r = de_fabrica_en(ancho);
+      assert!(r.first().unwrap().x >= 0.0 && r.last().map(|u| u.x + u.w).unwrap() <= ancho, "{ancho}: {r:?}");
+      assert!(r.windows(2).all(|p| p[0].x + p[0].w <= p[1].x), "{ancho}: {r:?}");
+    }
+  }
+
+  #[test]
+  fn en_pantalla_grande_siguen_colgando_del_centro() {
+    let r = de_fabrica_en(1920.0);
+    let mut solas: Vec<Rect> = de_fabrica().into_iter().map(|m| Burbuja::new(m, None).limites(1920.0, 728.0)).collect();
+    solas.sort_by(|a, b| a.x.total_cmp(&b.x));
+    assert_eq!(r, solas);
   }
 
   #[test]
