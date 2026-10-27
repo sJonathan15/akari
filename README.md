@@ -3,22 +3,30 @@
 </p>
 
 <p align="center">
-  <b>Floating desktop capsules for Linux and Windows: your AI usage, your devices and your AI skills — at a glance.</b><br>
+  <b>Floating desktop capsules for Linux and Windows: an AI assistant you can talk to, your AI usage and models, your devices, and documents & audio → Markdown — at a glance.</b><br>
   <a href="#español">Español</a> · <a href="#install">Install</a> · <a href="#first-steps">First steps</a> · <a href="#privacy">Privacy</a>
 </p>
 
 <p align="center">
-  <img src="docs/capsules-en.png" alt="akari capsules: devices with 3D models, Claude Code / Codex usage, and AI skills" width="820">
+  <img src="docs/groups-en.png" alt="akari: the Computer, AI (open on the assistant) and Files capsules" width="900">
 </p>
 
-**akari** (明かり, *light*) hangs three small capsules from the top edge of your screen. Hover one and it
-opens; drag it anywhere (or against a side edge to turn it into a vertical tab).
+**akari** (明かり, *light*) hangs three small capsules from the top edge of your screen — **Computer**, **AI**
+and **Files**. Closed, each one is a pill with a small chip per feature; hover a chip and the capsule opens
+right there, click another chip to switch. Drag it anywhere (or against a side edge to turn it into a vertical tab).
 
-| Capsule | What it shows |
-|---|---|
-| **AI** | **Claude Code** and **Codex**: what's left of your 5-hour and weekly limits, when they renew, when you'd run out at the current pace, tokens today, the model in use, sessions. Desktop alerts at 80 % / 95 %. A button (or a daily schedule) to **start your 5-hour window** with a tiny Haiku message. |
-| **Devices** | Your mouse, keyboard, headphones, phone, controllers… **detected automatically** (Bluetooth, USB, UPower, KDE Connect / GSConnect; on Windows, Bluetooth and USB through Plug and Play) with battery, charging state, codec/volume, Caps Lock, remaining time — and a **3D model** you can spin. Low-battery alerts. |
-| **Skills** | The skills and MCP connectors your AI already has, how often it used each one, and **10 recommended everyday skills** (PDF, Word, Excel, slides, writing, posters, diagrams…) you can install with one click for Claude Code and/or Codex. |
+| Capsule | Feature | What it does |
+|---|---|---|
+| **Computer** | **Devices** | Your mouse, keyboard, headphones, phone, controllers… **detected automatically** (Bluetooth, USB, UPower, KDE Connect / GSConnect; on Windows, Bluetooth and USB through Plug and Play) with battery, charging state, codec/volume, Caps Lock, remaining time — and a **3D model** you can spin. Low-battery alerts. |
+| **AI** | **Assistant** | Type to it — or say **“akari, …”** — and it does things on your computer: opens apps, links and folders, controls the music, reads your files (never keys or `.env`), **looks at your screen**, takes a photo with the camera only when you ask, searches the web, and takes notes in a Markdown folder (an Obsidian vault works). Answers with the model you chose (local or API) or with **Claude Code** in the background or in a terminal. Optional voice: wake word with Vosk confirmed by Whisper, spoken answers with Piper. |
+| | **AI usage** | **Claude Code** and **Codex**: what's left of your 5-hour and weekly limits, when they renew, when you'd run out at the current pace, tokens today, the model in use, sessions. Alerts at 80 % / 95 %. A button (or a daily schedule) to **start your 5-hour window**. |
+| | **AI models** | What the assistant and the summaries think with: an **API key** (Anthropic, OpenAI, Gemini, OpenRouter, Groq) or **free local models** with Ollama that akari recommends for *your* RAM and graphics card. |
+| | **Skills** | The skills and MCP connectors your AI already has, how often it used each one, and **10 recommended everyday skills** you can install with one click for Claude Code and/or Codex. |
+| | **Tools** | Terminal tools Claude Code and Codex make good use of — gitleaks, semgrep, trivy, ast-grep, repomix, ccusage, rtk and the context7 MCP — installed with what you already have (Homebrew, winget, uv, pipx, npm…); if only `sudo` would do, it shows the command or opens it in a terminal. |
+| **Files** | **Documents** | PDF, Word and Excel → **Markdown** (for an AI or Obsidian), and Markdown or your clipboard → Word or PDF. Drop files on the capsule. |
+| | **Audio** | Audio or video → **Markdown transcript** next to the original: locally with faster-whisper (large-v3-turbo on an NVIDIA card) or with your Groq/OpenAI key. Whisper's made-up lines (“thanks for watching”, loops…) are removed. Optional summary and notes. Record meetings (mic + what's playing) on Linux. |
+
+Hide a feature or a whole capsule in `~/.config/akari/capsulas.json`: `{"ocultas": ["audio", "equipo"]}`.
 
 ## Works on every Linux desktop — and on Windows
 
@@ -26,7 +34,7 @@ opens; drag it anywhere (or against a side edge to turn it into a vertical tab).
 |---|---|
 | KDE Plasma (Wayland), Hyprland (Caelestia, end-4…), Sway, niri, river, labwc, Wayfire, COSMIC | **Capsules** (Quickshell, layer-shell) |
 | GNOME 45–50 (Ubuntu, Fedora…) | **Native GNOME Shell extension** in the top bar + full panel with 3D |
-| X11, XFCE, Cinnamon, MATE, LXQt, Budgie, and distros without Quickshell (Debian, Ubuntu, Mint, Pop!_OS…) | **Bubbles app** (AppImage): the same three capsules — hover to open, drag, vertical tab on the side edges — plus a tray icon |
+| X11, XFCE, Cinnamon, MATE, LXQt, Budgie, and distros without Quickshell (Debian, Ubuntu, Mint, Pop!_OS…) | **Bubbles app** (AppImage): the same three capsules (one bubble per group, `GET /api/burbujas` says which) — hover to open, drag, vertical tab on the side edges — plus a tray icon |
 | **Windows 10 / 11** | **Bubbles app** (installer with Python built in) + tray icon, starts with Windows |
 
 Every interface takes your desktop's colors: the full Caelestia scheme, the KDE or GNOME accent color,
@@ -38,7 +46,8 @@ openSUSE, Debian / Ubuntu / Mint, Void, Alpine, Solus, NixOS (Nix), Gentoo… wi
 
 <p align="center">
   <img src="docs/gnome-bar.png" alt="akari in the GNOME top bar" width="560"><br>
-  <img src="docs/panel-en.png" alt="akari full panel: AI, devices with 3D, skills" width="900">
+  <img src="docs/panel-en.png" alt="akari full panel: the Computer group with a 3D model of each device" width="900"><br>
+  <img src="docs/panel-tools-en.png" alt="akari full panel: tools for your AI" width="760">
 </p>
 
 ## Install
@@ -77,7 +86,7 @@ line is kept and still shown). Options: `--interfaz capsulas|gnome|app`, `--sin-
 make it executable and run it: it carries its own service (only `python3` is needed, which every
 distribution ships).
 
-**Try it without your data:** `AKARI_DEMO=1 akari servicio` shows example data.
+**Try it without your data:** `AKARI_DEMO=1 akari servicio` shows example data (assistant, models, documents and audio included).
 
 ### Requirements
 - `python3` ≥ 3.9 (no pip packages). D-Bus is used through PyGObject if present, otherwise akari's own
@@ -131,8 +140,13 @@ plugged in over USB.
 
 ## Using it
 
-- **Hover** a capsule to open it, **click** its header to pin it open, **drag** it to move it,
-  **double-click** to send it back home. Drop it against the left/right edge to make it a vertical tab.
+- **Hover** a chip on a capsule to open it there, **click** another chip to switch, **click** the open one to pin it,
+  **drag** it to move it, **double-click** to send it back home. Drop it against the left/right edge to make it a vertical tab.
+- **Drop a file** on the Files capsule: documents get converted, audio and video get transcribed.
+- **Assistant:** type in “Or type it here…”, or turn on **Listen for “akari”** (after **Install voice**) and say
+  *“akari, open Firefox”*, *“akari, what's on my screen?”*, *“akari, note: buy flour”*. “Open X”, music and the time
+  are handled without spending tokens. With **Claude** + **Background** it runs `claude -p` with read-only tools;
+  **Terminal** opens a terminal with `claude "<your text>"`.
 - `akari estado` — summary in the terminal · `akari abrir` — full panel · `akari app` — bubbles · `akari arrancar` — start whatever is missing · `akari guia` — how to use it on your desktop.
 - A device detected wrongly? Use **Change type** or **Hide** in its card.
 
@@ -144,6 +158,9 @@ plugged in over USB.
 | `dispositivos.json` | `ocultar`, `nombres`, `tipos`, `umbrales_bateria` (default `[20, 10, 5]`) |
 | `posiciones.json` | where you left each capsule |
 | `activar.json` | 5-hour window schedule |
+| `capsulas.json` | `{"ocultas": [...]}`: features (`asistente`, `audio`…) or whole capsules (`equipo`, `ia`, `archivos`) to hide |
+| `modelos.json` · `claves.json` | the AI model in use · your API keys (only readable by you, never shown back) |
+| `asistente.json` | where/who, wake word, voice, notes folder |
 
 Environment: `AKARI_PANTALLA=DP-1` (which monitor), `AKARI_SIN_MOVIMIENTO=1` (reduce motion).
 
@@ -163,6 +180,17 @@ JSON requests (so no website can trigger actions). akari **reads**:
 Network is used only to download skills you choose to install (from their original GitHub repository)
 and, by the installer, fonts and the AppImage. The 5-hour window button runs `claude -p` with no tools.
 
+The new features ask before using anything heavy and work offline when you choose local options:
+
+- **AI models / assistant / audio:** with an API key, your question (and, when you ask it to look, the
+  screenshot or photo) goes to that provider only; with Ollama, Whisper, Vosk and Piper everything stays on
+  your computer. Optional packages go into akari's own Python environment, with a button and no password.
+- **Screen and camera:** only when you ask; akari hides its capsules first, the image goes to the model and
+  is **never saved**. The camera is refused unless your message mentions it.
+- **Files:** the assistant only lists or reads inside your home folder and never `.ssh`, `.gnupg`, `.env`,
+  keys, keyrings, tokens or credentials. It opens folders and documents, never executables. Notes are only
+  written to `<your notes folder>/akari/YYYY-MM-DD.md`; your own notes are never edited.
+
 ## Recommended skills
 
 | Skill | Source | License |
@@ -179,8 +207,10 @@ the ones it installed. The list lives in [`akari/catalogo.json`](akari/catalogo.
 
 ```
 akari/        Python service (stdlib only): ia.py (Claude Code + Codex), dispositivos.py, habilidades.py, servidor.py,
-              windows.py (Windows devices), dbus_nativo.py (pure-Python D-Bus), tema.py (desktop colors)
-capsulas/     Quickshell capsules (QML)            web/       full panel + bubbles (three.js 3D)
+              windows.py (Windows devices), dbus_nativo.py (pure-Python D-Bus), tema.py (desktop colors),
+              grupos.py (capsule groups), modelos.py, asistente.py + acciones.py + voz.py, documentos.py, audio.py,
+              herramientas.py, extras.py (optional Python environments) · recursos/ (scripts run in those environments)
+capsulas/     Quickshell capsules: CapsulaGrupo.qml + Pieza*.qml     web/       full panel + bubbles (three.js 3D)
 app/          Electron app (bubbles) → AppImage / Windows installer      gnome/     GNOME Shell extension
 modelos/      CC0 3D models + herramientas/modelos.py
 pruebas/      servicio/: service tests (Linux + Windows) · gnome/: headless GNOME Shell test (Docker)
@@ -205,20 +235,40 @@ Code: [MIT](LICENSE).
 <a id="español"></a>
 ## Español
 
-**akari** (明かり, *luz*) cuelga tres cápsulas pequeñas del borde superior de tu pantalla. Pasa el ratón y se
-abren; arrástralas a donde quieras (o contra un borde lateral para volverlas una pestaña vertical).
+**akari** (明かり, *luz*) cuelga tres cápsulas pequeñas del borde superior de tu pantalla: **Equipo**, **IA** y
+**Archivos**. Cerrada, cada una es una píldora con un chip por función; pasa el ratón por un chip y se abre ahí
+mismo, clic en otro chip para cambiar. Arrástralas a donde quieras (o contra un borde lateral para volverlas una
+pestaña vertical).
 
-- **IA** — **Claude Code** y **Codex**: cuánto te queda del límite de 5 horas y del semanal, cuándo se renuevan,
-  a qué hora se acabaría a este ritmo, tokens de hoy, modelo en uso y sesiones. Avisos al 80 % y 95 %. Botón
-  (o programación diaria) para **activar la ventana de 5 horas** con un mensaje mínimo a Haiku.
-- **Dispositivos** — ratón, teclado, audífonos, celular, mandos… **detectados solos** (Bluetooth, USB, UPower,
-  KDE Connect / GSConnect) con batería, carga, códec/volumen, Bloq Mayús, tiempo restante y un **modelo 3D** que
-  puedes girar. Avisos de batería baja.
-- **Habilidades** — las skills y conectores MCP que ya tiene tu IA, cuántas veces usó cada una y **10 habilidades
-  recomendadas para el día a día** (PDF, Word, Excel, presentaciones, redacción, afiches, diagramas…) que se
-  instalan con un clic para Claude Code y/o Codex.
+- **Equipo · Dispositivos** — ratón, teclado, audífonos, celular, mandos… **detectados solos** (Bluetooth, USB,
+  UPower, KDE Connect / GSConnect) con batería, carga, códec/volumen, Bloq Mayús, tiempo restante y un **modelo 3D**
+  que puedes girar. Avisos de batería baja.
+- **IA · Asistente** — escríbele o dile **«akari, …»** y hace cosas en tu equipo: abre apps, enlaces y carpetas,
+  controla la música, lee tus archivos (nunca claves ni `.env`), **mira la pantalla**, saca una foto con la cámara
+  solo si se lo pides, busca en la web y toma notas en una carpeta de Markdown (sirve tu bóveda de Obsidian).
+  Responde con el modelo que elegiste (local o por API) o con **Claude Code** en segundo plano o en una terminal.
+  Voz opcional: palabra clave con Vosk confirmada con Whisper y respuestas habladas con Piper. Es un muñequito
+  pixel-art: un farolito con llama.
+- **IA · Uso de IA** — **Claude Code** y **Codex**: cuánto te queda del límite de 5 horas y del semanal, cuándo se
+  renuevan, a qué hora se acabaría a este ritmo, tokens de hoy, modelo en uso y sesiones. Avisos al 80 % y 95 %.
+  Botón (o programación diaria) para **activar la ventana de 5 horas**.
+- **IA · Modelos de IA** — con qué piensan el asistente y los resúmenes: una **clave de API** (Anthropic, OpenAI,
+  Gemini, OpenRouter, Groq) o **modelos locales gratis** con Ollama, recomendados para *tu* RAM y tarjeta de video.
+- **IA · Habilidades** — las skills y conectores MCP que ya tiene tu IA, cuántas veces usó cada una y **10
+  habilidades recomendadas** que se instalan con un clic para Claude Code y/o Codex.
+- **IA · Herramientas** — gitleaks, semgrep, trivy, ast-grep, repomix, ccusage, rtk y el MCP context7: si están, qué
+  hacen y un botón para instalarlas con lo que ya tienes (Homebrew, winget, uv, pipx, npm…); si solo se puede con
+  `sudo`, te muestra el comando o lo abre en una terminal.
+- **Archivos · Documentos** — PDF, Word y Excel → **Markdown** (para una IA u Obsidian) y Markdown o lo copiado →
+  Word o PDF. Suelta los archivos sobre la cápsula.
+- **Archivos · Audio** — audio o video → **transcripción en Markdown** junto al original: en tu equipo con
+  faster-whisper (large-v3-turbo en una NVIDIA) o con tu clave de Groq/OpenAI. Quita lo que Whisper inventa
+  («gracias por ver», bucles…). Resumen y notas opcionales. Grabar reuniones (micrófono + lo que suena) en Linux.
 
-<p align="center"><img src="docs/capsulas-es.png" alt="cápsulas de akari en español" width="820"></p>
+<p align="center"><img src="docs/grupos-es.png" alt="las tres cápsulas de akari, con IA abierta en el asistente" width="900"><br>
+<img src="docs/archivos-es.png" alt="la cápsula Archivos: audio a texto y documentos" width="900"></p>
+
+Para ocultar una función o una cápsula entera: `~/.config/akari/capsulas.json` con `{"ocultas": ["audio", "equipo"]}`.
 
 **Funciona en todo Linux y en Windows:** cápsulas en KDE Plasma, Hyprland (Caelestia…), Sway, niri y demás
 compositores con layer-shell; **extensión nativa** en GNOME 45–50; y **burbujas** —las mismas tres cápsulas, con
@@ -254,7 +304,7 @@ caso, hace que akari arranque con tu sesión (`~/.config/autostart`, o `exec-onc
 Hyprland, Sway, niri, labwc, river y Wayfire cuando no arrancan con systemd), y te ofrece conectar la línea de estado
 de Claude Code (la tuya se conserva). Opciones: `--interfaz capsulas|gnome|app`. Para quitarlo:
 `./install.sh --desinstalar`. ¿Solo la app? Baja el AppImage de [Releases](https://github.com/sJonathan15/akari/releases).
-¿Probar sin tus datos? `AKARI_DEMO=1 akari servicio`.
+¿Probar sin tus datos? `AKARI_DEMO=1 akari servicio` (con datos de ejemplo del asistente, modelos, documentos y audio).
 
 <a id="primeros-pasos"></a>
 ### Primeros pasos
@@ -303,9 +353,18 @@ Todo se queda en tu equipo: el servicio solo escucha en `127.0.0.1` y solo acept
 únicamente el nombre y el plan; nunca tokens ni correos. La red solo se usa para bajar las habilidades que elijas
 instalar (desde su repositorio original) y, al instalar, las fuentes y el AppImage.
 
+Con una clave de API, tu pregunta (y la captura o la foto, si le pides mirar) va solo a ese proveedor; con Ollama,
+Whisper, Vosk y Piper nada sale del equipo. La pantalla y la cámara solo a pedido: akari esconde sus cápsulas antes,
+la imagen va al modelo y **nunca se guarda**. El asistente solo lee dentro de tu carpeta personal y nunca `.ssh`,
+`.env`, claves, llaveros ni credenciales; abre carpetas y documentos, nunca programas; y anota solo en
+`<tu carpeta de notas>/akari/AAAA-MM-DD.md`, sin tocar tus notas.
+
 ### Uso
-Pasa el ratón para abrir, clic en la cabecera para dejarla fija, arrastra para mover, doble clic para devolverla
-a su sitio. En la terminal: `akari estado` (resumen) y `akari abrir` (panel completo). ¿Un dispositivo salió con el
+Pasa el ratón por un chip para abrir la cápsula ahí, clic en otro chip para cambiar, clic en el abierto para dejarla
+fija, arrastra para mover, doble clic para devolverla a su sitio. Suelta archivos sobre **Archivos** para convertirlos
+o transcribirlos. Al asistente escríbele en «O escríbelo aquí…» o, tras **Instalar voz**, activa **Escuchar palabra
+clave** y di *«akari, abre Firefox»*, *«akari, ¿qué hay en mi pantalla?»*, *«akari, anota: comprar harina»*. «Abre X»,
+la música y la hora se resuelven sin gastar tokens. En la terminal: `akari estado` (resumen) y `akari abrir` (panel completo). ¿Un dispositivo salió con el
 tipo equivocado? Usa **Cambiar tipo** u **Ocultar** en su tarjeta. Ajustes en `~/.config/akari/` (ver la tabla de arriba).
 
 Modelos 3D **CC0** (dominio público) · código **MIT**.
