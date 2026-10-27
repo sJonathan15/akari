@@ -191,6 +191,8 @@ jobs:
             (Fila 'Primera apertura (crea WebView2, informativo)' "$($m.raton.abre_en_ms) ms" '—' $true)
             (Fila 'CPU en reposo' "$($m.cpu_reposo_pct) %" "≤ $env:LIMITE_CPU_PCT %" ($m.cpu_reposo_pct -le [double]$env:LIMITE_CPU_PCT))
             (Fila 'Burbujas en pantalla' "$($m.ventanas.Count)" '≥ 3' ($m.ventanas.Count -ge 3))
+            (Fila 'Píldoras sin encimarse ni salirse de la pantalla' "$($m.visita.encimadas) / $($m.visita.fuera)" '0 / 0' ($m.visita -and $m.visita.encimadas -eq 0 -and $m.visita.fuera -eq 0))
+            (Fila 'Cada grupo se abre y cabe en la pantalla' "$(@($m.visita.grupos | Where-Object { $_.cabe }).Count) de $(@($m.visita.grupos).Count)" 'todos' ($m.visita -and @($m.visita.grupos).Count -ge 3 -and -not ($m.visita.grupos | Where-Object { -not $_.cabe })))
             (Fila 'Se abre al pasar el ratón y se cierra al salir' "$($m.raton.se_abrio) / $($m.raton.se_cerro)" 'True / True' ($m.raton.se_abrio -and $m.raton.se_cerro))
           )
           $tabla = "| Medida | Valor | Meta | |`n|---|---|---|---|`n" + (($filas | ForEach-Object { "| $($_.Medida) | $($_.Valor) | $($_.Meta) | $(if ($_.Ok) { '✅' } else { '❌' }) |" }) -join "`n")
