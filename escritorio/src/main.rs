@@ -626,6 +626,23 @@ fn main() {
     .on_window_event(|ventana, ev| match ev {
       tauri::WindowEvent::CloseRequested { api, .. } if ventana.label().starts_with("b-") => api.prevent_close(),
       tauri::WindowEvent::Destroyed if ventana.label() == "panel" => informar_abiertas(ventana.app_handle()),
+      // archivos soltados en una burbuja (o en el panel): la página los recibe como un "drop"
+      // normal y sabe su ruta real con window.akari.rutaDe (ver web/ventana.js)
+      tauri::WindowEvent::DragDrop(arrastre) => {
+        let escala = ventana.scale_factor().unwrap_or(1.0);
+        let punto = |p: &tauri::PhysicalPosition<f64>| (p.x / escala, p.y / escala);
+        let (tipo, rutas, (x, y)) = match arrastre {
+          tauri::DragDropEvent::Enter { paths, position } => ("entrar", paths.clone(), punto(position)),
+          tauri::DragDropEvent::Over { position } => ("encima", vec![], punto(position)),
+          tauri::DragDropEvent::Drop { paths, position } => ("soltar", paths.clone(), punto(position)),
+          _ => ("salir", vec![], (0.0, 0.0)),
+        };
+        let rutas: Vec<String> = rutas.iter().map(|r| r.to_string_lossy().into_owned()).collect();
+        let datos = serde_json::json!({ "tipo": tipo, "rutas": rutas, "x": x, "y": y });
+        if let Some(v) = ventana.app_handle().get_webview_window(ventana.label()) {
+          let _ = v.eval(format!("window.__akariArrastre && window.__akariArrastre({datos})"));
+        }
+      }
       tauri::WindowEvent::ScaleFactorChanged { .. } => {
         // llega en medio de un SetWindowPos: se recoloca después, ya fuera de esa llamada
         let app = ventana.app_handle().clone();
