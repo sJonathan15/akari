@@ -94,8 +94,21 @@ Por partes, cada una con su commit:
    `notificar` una vez por versión, y `POST /api/actualizacion {"accion": "revisar"}` fuerza la
    revisión. Pruebas: `pruebas/servicio/prueba_actualizacion.py` (GitHub falso); probado también
    contra la API real. No corre con `AKARI_DEMO=1`.
-2. ⬜ `akari actualizar` y botón en el panel: baja la versión nueva y reemplaza la instalación de
-   `install.sh` / `install.ps1` conservando la configuración; reinicia el servicio.
+2. ✅ `akari actualizar [--version vX] [--forzar]` (`actualizar()` en `akari/actualizacion.py`)
+   mira cómo se instaló akari (`instalacion()`): **linux** (install.sh) baja el `.tar.gz` de la
+   etiqueta, lo descomprime sin dejar salir nada y corre su `install.sh --si --sin-dependencias
+   --sin-statusline --version vX --interfaz <la de ajustes.json>`, luego reinicia servicio y
+   cápsulas (systemd o `pkill` + `akari arrancar`); **windows-codigo** igual con el `.zip` e
+   `install.ps1 -DesdeCodigo -Version vX` (que ahora cierra el servicio viejo antes de copiar);
+   **windows-app** baja `akari-setup-x64.exe` de la release y lo corre con `/S` cuando el comando ya
+   terminó (usa el Python de la app), luego reabre la app; **git**/**appimage** solo dicen qué hacer.
+   CONFIG y los datos no se tocan. Panel web: tarjeta «Hay una versión nueva» arriba con
+   Actualizar / Ahora no / Novedades (`POST /api/actualizacion {"accion": "instalar"|"ahora-no"}`;
+   instalar lanza `akari actualizar` aparte, registro en `CACHE/actualizar.log`). Desde el servicio de
+   la app de Windows «instalar» remite al aviso de la app (parte 3).
+   Probado en Linux de punta a punta (usuario sin root, install.sh → `akari actualizar` contra un
+   GitHub falso con v9.9.9: versión nueva instalada, `ajustes.json` y `entornos/` intactos) y el
+   aviso del panel con Playwright. ⬜ Falta probar `windows-codigo` y `windows-app` en Windows.
 3. ⬜ App de Windows y AppImage: updater de Tauri con GitHub Releases y `latest.json`, firmado (clave
    privada solo como secreto del CI), aviso «Hay una versión nueva» con Actualizar / Ahora no.
 4. ⬜ CI: en cada etiqueta `v*` publica AppImage, `.exe`, sus firmas y `latest.json`.

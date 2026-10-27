@@ -15,6 +15,7 @@
 #   --sin-statusline                  no conectar la línea de estado de Claude Code
 #   --sin-dependencias                no instalar paquetes del sistema (no usa sudo)
 #   --desinstalar                     quitar akari (deja ~/.config/akari)
+#   --version vX.Y.Z                  esa versión (la usa `akari actualizar`); si no, la última
 #   --si                              responder "sí" a todo
 set -euo pipefail
 
@@ -26,7 +27,7 @@ UNIDADES="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 FUENTES="${XDG_DATA_HOME:-$HOME/.local/share}/fonts"
 EXT_GNOME="akari@sjonathan15.github.io"
 
-INTERFAZ="" STATUSLINE=1 DEPENDENCIAS=1 DESINSTALAR=0 SI=0
+INTERFAZ="" STATUSLINE=1 DEPENDENCIAS=1 DESINSTALAR=0 SI=0 VERSION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --interfaz) INTERFAZ="${2:-}"; [ "$INTERFAZ" = panel ] && INTERFAZ=app; shift ;;
@@ -34,6 +35,7 @@ while [ $# -gt 0 ]; do
     --sin-dependencias) DEPENDENCIAS=0 ;;
     --desinstalar|--uninstall) DESINSTALAR=1 ;;
     --si|--yes|-y) SI=1 ;;
+    --version) VERSION="${2:-}"; shift ;;
     *) echo "opción desconocida / unknown option: $1"; exit 2 ;;
   esac
   shift
@@ -172,7 +174,9 @@ if [ -f "$(dirname "$0")/akari/__init__.py" ] 2>/dev/null; then
 fi
 if [ -z "$ORIGEN" ]; then
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-  if tiene git; then
+  if [ -n "$VERSION" ]; then
+    mkdir -p "$TMP/akari" && curl -fsSL "$REPO_URL/archive/refs/tags/$VERSION.tar.gz" | tar -xz -C "$TMP/akari" --strip-components=1
+  elif tiene git; then
     git clone --depth 1 -q "$REPO_URL" "$TMP/akari"
   else
     curl -fsSL "$REPO_URL/archive/refs/heads/main.tar.gz" | tar -xz -C "$TMP" && mv "$TMP"/akari-main "$TMP/akari"
@@ -247,6 +251,7 @@ if [ "$INTERFAZ" = app ] || [ "$INTERFAZ" = gnome ]; then
   # enlace fijo a la última versión (no usa la API de GitHub, que limita las consultas anónimas)
   case "$(uname -m)" in x86_64|amd64) ARQ=x86_64 ;; aarch64|arm64) ARQ=arm64 ;; *) ARQ="" ;; esac
   URL_APP="$REPO_URL/releases/latest/download/akari-$ARQ.AppImage"
+  [ -n "$VERSION" ] && URL_APP="$REPO_URL/releases/download/$VERSION/akari-$ARQ.AppImage"
   if [ -n "$ARQ" ] && curl -fsSL -o "$DESTINO/app/akari-panel.tmp" "$URL_APP" \
      && mv "$DESTINO/app/akari-panel.tmp" "$DESTINO/app/akari-panel"; then
     chmod +x "$DESTINO/app/akari-panel"

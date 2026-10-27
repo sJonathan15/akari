@@ -413,3 +413,7 @@ body.vista-burbuja { min-height: 0; height: 100vh; overflow: hidden; user-select
 .asis-entrada p { margin: 0; font-size: 12.5px; color: var(--texto-var); line-height: 1.45; white-space: pre-wrap; }
 .asis-entrada small { font-size: 10px; }
 svg.muneco { display: block; }
+.actualizacion { margin: 0 0 10px; display: flex; flex-direction: column; gap: 4px; }
+.actualizacion b { color: var(--primario); }
+.actualizacion .botones { margin-top: 6px; }
+.actualizacion a.boton { text-decoration: none; }

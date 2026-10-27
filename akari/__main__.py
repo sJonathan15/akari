@@ -9,6 +9,7 @@
   akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o app)
   akari conectar-claude / desconectar-claude   línea de estado de Claude Code
   akari statusline     línea de estado para Claude Code (la configura el instalador)
+  akari actualizar [--version X] [--forzar]   instala la versión nueva (tu configuración se queda)
   akari version
 """
 import json
@@ -383,6 +384,13 @@ def main():
     elif orden == "escritorio":
         nombre, interfaz = escritorio()
         print(f"{nombre or '?'} → {interfaz}")
+    elif orden in ("actualizar", "update"):
+        from .actualizacion import actualizar
+        resto = sys.argv[2:]
+        version = resto[resto.index("--version") + 1] if "--version" in resto[:-1] else None
+        ok, mensaje = actualizar(version, forzar="--forzar" in resto or "--force" in resto)
+        print(mensaje)
+        sys.exit(0 if ok else 1)
     elif orden in ("version", "--version", "-v"):
         print(f"akari {VERSION}")
     else:

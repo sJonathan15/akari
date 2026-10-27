@@ -16,7 +16,7 @@ POST /api/audio           {"accion", ...}           (audio / video → Markdown,
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
 POST /api/asistente       {"accion", ...}           (preguntar, ajustes, voz… ver asistente.py y voz.py)
 POST /api/burbujas        {"abiertas": [...]}: la app de escritorio avisa qué hay abierto; sin nada → reposo
-POST /api/actualizacion   {"accion": "revisar"}     (¿hay versión nueva? ver actualizacion.py)
+POST /api/actualizacion   {"accion": "revisar"|"ahora-no"|"instalar"}   (versión nueva, ver actualizacion.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -198,9 +198,9 @@ def crear_manejador(servicio):
                 abiertas = datos.get("abiertas")
                 servicio.ventanas([str(x) for x in abiertas] if isinstance(abiertas, list) else [])
                 return self._json({"ok": True, "reposo": servicio.reposo})
-            if ruta == "/api/actualizacion" and datos.get("accion") == "revisar":
-                threading.Thread(target=servicio.actualizacion.revisar, args=(True,), daemon=True).start()
-                return self._json({"ok": True})
+            if ruta == "/api/actualizacion":
+                ok, mensaje = servicio.actualizacion.accion(datos)
+                return self._json({"ok": ok, "mensaje": mensaje})
             if ruta == "/api/ajustes":
                 a = ajustes()
                 if datos.get("idioma") in ("es", "en", "auto"):

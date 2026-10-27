@@ -9,10 +9,11 @@
 #   -SinStatusline   no conectar la línea de estado de Claude Code
 #   -DesdeCodigo     no usar la app: instalar el servicio con tu Python y abrir el panel en Edge
 #   -Desinstalar     quitar akari (deja %APPDATA%\akari)
+#   -Version vX.Y.Z  esa versión (la usa `akari actualizar`); si no, la última
 #
 # Lo normal: baja el instalador de la app (akari-setup-x64.exe, de Releases), que trae dentro
 # Python, el servicio y las tres burbujas flotantes; queda para iniciar con Windows.
-param([switch]$Si, [switch]$SinStatusline, [switch]$DesdeCodigo, [switch]$Desinstalar)
+param([switch]$Si, [switch]$SinStatusline, [switch]$DesdeCodigo, [switch]$Desinstalar, [string]$Version = '')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -95,7 +96,8 @@ if (-not $DesdeCodigo) {
   # x64 también corre en Windows ARM (emulación)
   $setup = Join-Path ([IO.Path]::GetTempPath()) 'akari-setup-x64.exe'
   try {
-    Invoke-WebRequest -UseBasicParsing "$Repo/releases/latest/download/akari-setup-x64.exe" -OutFile $setup
+    $desde = if ($Version) { "$Repo/releases/download/$Version" } else { "$Repo/releases/latest/download" }
+    Invoke-WebRequest -UseBasicParsing "$desde/akari-setup-x64.exe" -OutFile $setup
     Get-Process akari -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Process -Wait $setup -ArgumentList '/S'
     Remove-Item $setup -ErrorAction SilentlyContinue
@@ -124,11 +126,16 @@ if (-not $conApp) {
   New-Item -ItemType Directory -Force $tmp | Out-Null
   $local = if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot 'akari\__init__.py'))) { $PSScriptRoot } else { $null }
   if (-not $local) {
-    Invoke-WebRequest -UseBasicParsing "$Repo/archive/refs/heads/main.zip" -OutFile (Join-Path $tmp 'akari.zip')
+    $zip = if ($Version) { "$Repo/archive/refs/tags/$Version.zip" } else { "$Repo/archive/refs/heads/main.zip" }
+    Invoke-WebRequest -UseBasicParsing $zip -OutFile (Join-Path $tmp 'akari.zip')
     Expand-Archive (Join-Path $tmp 'akari.zip') -DestinationPath $tmp -Force
     $local = (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName
   }
   New-Item -ItemType Directory -Force $Codigo | Out-Null
+  # el servicio de antes (reinstalar o `akari actualizar`): se cierra para reemplazar sus archivos
+  Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*$Bin\akari.py*servicio*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   foreach ($parte in 'akari', 'bin', 'web', 'modelos', 'iconos', 'install.ps1', 'LICENSE', 'README.md') {
     $origen = Join-Path $local $parte
     if (-not (Test-Path $origen)) { continue }

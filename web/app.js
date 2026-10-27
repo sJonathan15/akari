@@ -737,6 +737,28 @@ function htmlChip(id, ancho) {
   return "";
 }
 
+// «Hay una versión nueva» arriba del panel: Actualizar / Ahora no (akari/actualizacion.py)
+let actualizacionDibujada = "";
+function dibujarActualizacion() {
+  const A = E.actualizacion, caja = $("#actualizacion");
+  const html = !A || A.pospuesta ? "" : `<span><b>${t("Hay una versión nueva", "A new version is available")}</b> · akari ${esc(A.version)}${A.beta ? " (beta)" : ""}</span>
+    <span class="tenue chico">${A.instalando ? t("Actualizando… akari se reinicia solo.", "Updating… akari restarts by itself.") : t("Tu configuración se conserva.", "Your settings are kept.")}</span>
+    <div class="botones"><button class="boton principal" data-act="instalar"${A.instalando ? " disabled" : ""}>${icono("system_update")} ${t("Actualizar", "Update")}</button>
+    <button class="boton" data-act="ahora-no"${A.instalando ? " disabled" : ""}>${t("Ahora no", "Not now")}</button>
+    <a class="boton" href="${esc(A.url)}" target="_blank" rel="noreferrer">${t("Novedades", "What's new")} ${icono("open_in_new")}</a></div>`;
+  if (html === actualizacionDibujada) return;
+  actualizacionDibujada = html;
+  caja.innerHTML = html;
+  caja.hidden = !html;
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("#actualizacion [data-act]");
+  if (!b) return;
+  b.disabled = true;
+  const r = await enviar("/api/actualizacion", { accion: b.dataset.act });
+  if (!r.ok && r.mensaje) { b.disabled = false; alert(r.mensaje); }
+});
+
 // ------------------------------------------------------------------ general
 function dibujar() {
   if (!E) return;
@@ -746,7 +768,7 @@ function dibujar() {
     // el asistente las esconde un momento antes de mirar la pantalla (para no salir en la captura)
     document.documentElement.style.visibility = E.asistente && E.asistente.ocultar ? "hidden" : "";
     dibujarCabecera();
-  }
+  } else dibujarActualizacion();
   const dibujos = { dispositivos: dibujarDisp, asistente: dibujarAsistente, uso: dibujarIA, modelos: dibujarModelos, habilidades: dibujarHab, herramientas: dibujarHerr, documentos: dibujarDoc, audio: dibujarAudio };
   if (dibujos[ui.pagina]) dibujos[ui.pagina]();
 }
