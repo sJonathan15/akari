@@ -293,8 +293,28 @@ class Burbuja {
   }
 }
 
-function crearBurbujas() {
-  for (const [nombre, medidas] of Object.entries(BURBUJAS)) burbujas.set(nombre, new Burbuja(nombre, medidas));
+// La lista sale del servicio (GET /api/burbujas, a partir de capsulas/*.qml): así las cápsulas
+// nuevas aparecen solas. Si el servicio es de una versión sin esa ruta, las tres de siempre.
+function pedirBurbujas() {
+  return new Promise((ok) => {
+    const req = http.get(URL + "api/burbujas", (r) => {
+      let texto = "";
+      r.on("data", (c) => (texto += c));
+      r.on("end", () => {
+        try {
+          const lista = JSON.parse(texto).burbujas;
+          if (Array.isArray(lista) && lista.length) return ok(Object.fromEntries(lista.map((b) => [b.nombre, b])));
+        } catch {}
+        ok(BURBUJAS);
+      });
+    });
+    req.on("error", () => ok(BURBUJAS));
+    req.setTimeout(2000, () => { req.destroy(); ok(BURBUJAS); });
+  });
+}
+
+async function crearBurbujas() {
+  for (const [nombre, medidas] of Object.entries(await pedirBurbujas())) burbujas.set(nombre, new Burbuja(nombre, medidas));
   const recolocar = () => burbujas.forEach((b) => b.recolocar());
   screen.on("display-metrics-changed", recolocar);
   screen.on("display-added", recolocar);
