@@ -95,6 +95,18 @@
     <section id="p-audio" class="pagina">
       <div id="audio-contenido" class="doc-columna"></div>
     </section>
+
+    <!-- Archivos · Cerebro: el buscador queda fijo (no se redibuja mientras se escribe) -->
+    <section id="p-cerebro" class="pagina">
+      <div id="cer-contenido" class="doc-columna"></div>
+      <div id="cer-buscador" class="doc-columna" hidden>
+        <form class="campo cer-campo" id="cer-form"><span class="icono">search</span>
+          <input id="cer-q" autocomplete="off" spellcheck="false" data-t-ph="¿Dónde está…? (p. ej. informe de la tesis)|Where is…? (e.g. thesis report)">
+          <button class="boton" type="button" id="cer-preguntar" data-t="Preguntar|Ask"></button></form>
+        <div id="cer-resultados"></div>
+      </div>
+      <div id="cer-memoria" class="doc-columna"></div>
+    </section>
   </main>
 
   <script type="module" src="app.js"></script>

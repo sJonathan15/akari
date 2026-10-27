@@ -14,6 +14,7 @@ POST /api/documentos/subir  cuerpo = el archivo; cabeceras X-Akari-Nombre y X-Ak
                           (los audios y videos van a la transcripción)
 POST /api/audio           {"accion", ...}           (audio / video → Markdown, ver audio.py)
 POST /api/herramientas    {"id", "accion"}          (herramientas de terminal: instalar, copiar, terminal)
+POST /api/cerebro         {"accion", ...}           (mapa y memoria para la IA, ver cerebro.py)
 GET  /                    panel web (web/) y /modelos/*.glb
 """
 import json
@@ -32,6 +33,7 @@ from .ia import MonitorIA
 from .modelos import MonitorModelos
 from .documentos import Conversor
 from .audio import Transcriptor, es_audio
+from .cerebro import MonitorCerebro
 from .tema import Tema
 
 DEMO = os.environ.get("AKARI_DEMO") == "1"
@@ -53,6 +55,7 @@ class Servicio:
         self.modelos = MonitorModelos(self.cambio)
         self.documentos = Conversor(self.cambio)
         self.audio = Transcriptor(self.cambio, self.modelos)
+        self.cerebro = MonitorCerebro(self.cambio, self.modelos)
         self.tema = Tema()
         self._tema = self.tema.valor
 
@@ -73,7 +76,7 @@ class Servicio:
             return {**base, **demo.estado(), "demo": True}
         return {**base, "ia": self.ia.estado, "dispositivos": self.dispositivos.estado, "habilidades": self.habilidades.estado,
                 "modelos": self.modelos.estado, "documentos": self.documentos.estado, "audio": self.audio.estado,
-                "herramientas": self.herramientas.estado}
+                "herramientas": self.herramientas.estado, "cerebro": self.cerebro.estado}
 
     def _bucle(self, paso, intervalo):
         while True:
@@ -85,7 +88,8 @@ class Servicio:
 
     def arrancar(self):
         for paso, intervalo in ((self.ia.paso, 1), (self.dispositivos.leer, 3), (self.habilidades.paso, 5),
-                                (self.revisar_tema, 5), (self.modelos.paso, 10), (self.herramientas.paso, 5)):
+                                (self.revisar_tema, 5), (self.modelos.paso, 10), (self.herramientas.paso, 5),
+                                (self.cerebro.paso, 20)):
             threading.Thread(target=self._bucle, args=(paso, intervalo), daemon=True).start()
         threading.Thread(target=self.modelos.refrescar_proveedores, daemon=True).start()
 
@@ -158,6 +162,8 @@ def crear_manejador(servicio):
             if ruta == "/api/herramientas":
                 ok, mensaje = servicio.herramientas.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})
+            if ruta == "/api/cerebro":
+                return self._json(demo.cerebro_accion(datos) if DEMO else servicio.cerebro.accion(datos))
             if ruta == "/api/audio":
                 ok, mensaje = servicio.audio.accion(datos)
                 return self._json({"ok": ok, "mensaje": mensaje})

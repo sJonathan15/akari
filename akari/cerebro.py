@@ -1389,7 +1389,13 @@ class MonitorCerebro:
         self.mensaje = ""
         self.estado = {}
         self._ultimo = None
+        self._obsidian = (0, False)         # (cuándo se miró, instalado): mirarlo lanza programas
         self.calcular()
+
+    def obsidian(self):
+        if time.time() - self._obsidian[0] > 300:
+            self._obsidian = (time.time(), obsidian_instalado())
+        return self._obsidian[1]
 
     def paso(self):
         if configurado():
@@ -1475,9 +1481,10 @@ class MonitorCerebro:
             "boveda": a.get("boveda") or str(boveda_para(HOME / "Cerebro")),
             "carpetas": a.get("carpetas") or [], "texto_en": a.get("texto_en") or [],
             "permitir_api": bool(a.get("permitir_api")), "modelo_api": bool(camino and camino != "ollama"),
-            "candidatas": carpetas_candidatas(), "excluido": [t(*x) for x in EXCLUIDO_TEXTO],
+            "candidatas": carpetas_candidatas() + [{"ruta": x, "nombre": Path(x).name or x, "tipo": "elegida"}
+                                                   for x in a.get("propuestas", []) if Path(x).is_dir()], "excluido": [t(*x) for x in EXCLUIDO_TEXTO],
             "cifras": cif, "progreso": dict(self.progreso) if self.progreso else None, "eligiendo": self.eligiendo,
-            "conectado": ganchos.estado(), "obsidian": obsidian_instalado() if listo else False,
+            "conectado": ganchos.estado(), "obsidian": self.obsidian() if listo else False,
             "semantica": SEMANTICA.estado(self.modelos) if listo else {},
             "sesiones": [{k: s[k] for k in ("id", "agente", "fin", "titulo", "resumen", "pendiente", "proyecto_nombre")}
                          for s in sesiones(5)] if listo else [],
@@ -1534,6 +1541,7 @@ class MonitorCerebro:
             return {"ok": ok, "mensaje": mensaje, "instalar": not obsidian_instalado()}
         if accion == "obsidian_instalar":
             ok, mensaje = instalar_obsidian()
+            self._obsidian = (0, False)
             self.calcular()
             return {"ok": ok, "mensaje": mensaje}
         if accion == "carpeta_boveda":
@@ -1575,6 +1583,13 @@ class MonitorCerebro:
             ruta = elegir_carpeta(titulo)
             if ruta is None:
                 self.mensaje = t("No hay selector de carpetas: instala zenity o kdialog.", "No folder picker: install zenity or kdialog.")
+            elif ruta and not configurado():        # todavía en la pantalla de primera vez: solo se anota
+                a = ajustes()
+                if para == "boveda":
+                    a["boveda"] = str(boveda_para(ruta))
+                else:
+                    a["propuestas"] = sorted(set(a.get("propuestas", [])) | {ruta})
+                guardar_ajustes(a)
             elif ruta:
                 a = ajustes()
                 if para == "boveda":
