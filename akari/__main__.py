@@ -7,6 +7,8 @@
   akari estado         resumen en la terminal
   akari guia           cómo se usa akari en tu escritorio
   akari escritorio     qué interfaz conviene en este escritorio (cápsulas, GNOME o app)
+  akari cerebro …      el mapa de tu computadora y la memoria de tus sesiones (akari cerebro ayuda)
+  akari recorrido      vuelve a mostrar el recorrido de bienvenida
   akari conectar-claude / desconectar-claude   línea de estado de Claude Code
   akari statusline     línea de estado para Claude Code (la configura el instalador)
   akari version
@@ -378,6 +380,9 @@ def main():
         print(conectar_claude(sys.argv[2] if len(sys.argv) > 2 else None) if orden == "conectar-claude" else desconectar_claude())
     elif orden == "estado":
         sys.exit(resumen())
+    elif orden in ("cerebro", "brain"):
+        from .cerebro import main as cerebro
+        sys.exit(cerebro(sys.argv[2:]))
     elif orden in ("guia", "guía", "guide"):
         guia(sys.argv[2] if len(sys.argv) > 2 else None)
     elif orden == "escritorio":
