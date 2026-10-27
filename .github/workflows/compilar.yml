@@ -104,7 +104,7 @@ jobs:
           }
           '{0:N1} MB instalados' -f ((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
       - name: Medir (30 s en reposo, luego el ratón sobre una burbuja)
-        run: ./scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -Salida medicion.json -Captura captura.png
+        run: ./scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -TrasUso 75 -Salida medicion.json -Captura captura.png
       - name: El servicio de la app
         run: |
           $b = Invoke-RestMethod http://127.0.0.1:47830/api/burbujas
@@ -117,17 +117,6 @@ jobs:
           $quedan = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*Programs\akari*' })
           $quedan | ForEach-Object { "$($_.Name) $($_.CommandLine)" }
           if ($quedan.Count) { throw "quedaron $($quedan.Count) procesos de akari" }
-      - name: Variantes de WebView2 (informativo)
-        continue-on-error: true
-        run: |
-          foreach ($v in '--in-process-gpu', '--disable-gpu', '--in-process-gpu --disable-gpu-compositing') {
-            $env:AKARI_WEBVIEW_ARGS = $v
-            $n = ($v -replace '[^a-z]+', '-').Trim('-')
-            ./scripts/medir.ps1 -Exe "$env:LOCALAPPDATA\Programs\akari\akari.exe" -Espera 30 -Ventana 20 -Raton -Nombre "tauri $v" -Salida "variante-$n.json" | Out-Null
-            $m = Get-Content "variante-$n.json" | ConvertFrom-Json
-            "{0,-50} RAM {1,6} MB · CPU {2,5} % · abre: {3}" -f $v, $m.ram_ws_mb, $m.cpu_reposo_pct, $m.raton.se_abrio
-            Stop-Process -Id $m.pid -Force; Start-Sleep -Seconds 3
-          }
       - name: Desinstalar limpio
         run: |
           $dir = "$env:LOCALAPPDATA\Programs\akari"
@@ -147,18 +136,21 @@ jobs:
         run: |
           $m = Get-Content medicion.json | ConvertFrom-Json
           $mb = [math]::Round((Get-Item dist/akari-setup-x64.exe).Length / 1MB, 1)
+          function Fila($medida, $valor, $meta, $ok) { [pscustomobject]@{ Medida = $medida; Valor = $valor; Meta = $meta; Ok = [bool]$ok } }
           $filas = @(
-            @('Instalador', "$mb MB", "≤ $env:LIMITE_INSTALADOR_MB MB", $mb -le $env:LIMITE_INSTALADOR_MB),
-            @('RAM en reposo (Working Set, todos los procesos)', "$($m.ram_ws_mb) MB", "≤ $env:LIMITE_RAM_MB MB", $m.ram_ws_mb -le $env:LIMITE_RAM_MB),
-            @('RAM privada (informativo)', "$($m.ram_privada_mb) MB", '—', $true),
-            @('CPU en reposo', "$($m.cpu_reposo_pct) %", "≤ $env:LIMITE_CPU_PCT %", $m.cpu_reposo_pct -le $env:LIMITE_CPU_PCT),
-            @('Burbujas en pantalla', "$($m.ventanas.Count)", '≥ 3', $m.ventanas.Count -ge 3),
-            @('Se abre al pasar el ratón y se cierra al salir', "$($m.raton.se_abrio) / $($m.raton.se_cerro)", 'True / True', [bool]($m.raton.se_abrio -and $m.raton.se_cerro))
+            (Fila 'Instalador' "$mb MB" "≤ $env:LIMITE_INSTALADOR_MB MB" ($mb -le [double]$env:LIMITE_INSTALADOR_MB))
+            (Fila 'RAM en reposo (Working Set, todos los procesos)' "$($m.ram_ws_mb) MB" "≤ $env:LIMITE_RAM_MB MB" ($m.ram_ws_mb -le [double]$env:LIMITE_RAM_MB))
+            (Fila 'RAM privada (informativo)' "$($m.ram_privada_mb) MB" '—' $true)
+            (Fila 'RAM 75 s después de abrir y cerrar una burbuja (informativo)' "$($m.ram_tras_uso_mb) MB" '—' $true)
+            (Fila 'Primera apertura (crea WebView2, informativo)' "$($m.raton.abre_en_ms) ms" '—' $true)
+            (Fila 'CPU en reposo' "$($m.cpu_reposo_pct) %" "≤ $env:LIMITE_CPU_PCT %" ($m.cpu_reposo_pct -le [double]$env:LIMITE_CPU_PCT))
+            (Fila 'Burbujas en pantalla' "$($m.ventanas.Count)" '≥ 3' ($m.ventanas.Count -ge 3))
+            (Fila 'Se abre al pasar el ratón y se cierra al salir' "$($m.raton.se_abrio) / $($m.raton.se_cerro)" 'True / True' ($m.raton.se_abrio -and $m.raton.se_cerro))
           )
-          $tabla = "| Medida | Valor | Meta | |`n|---|---|---|---|`n" + (($filas | ForEach-Object { "| $($_[0]) | $($_[1]) | $($_[2]) | $(if ($_[3]) { '✅' } else { '❌' }) |" }) -join "`n")
+          $tabla = "| Medida | Valor | Meta | |`n|---|---|---|---|`n" + (($filas | ForEach-Object { "| $($_.Medida) | $($_.Valor) | $($_.Meta) | $(if ($_.Ok) { '✅' } else { '❌' }) |" }) -join "`n")
           $procesos = ($m.detalle | ForEach-Object { "$($_.proceso) ×$($_.cuantos): $($_.ws_mb) MB" }) -join ' · '
           "## akari para Windows (Tauri)`n`n$tabla`n`nProcesos: $procesos" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
-          if ($filas | Where-Object { -not $_[3] }) { throw 'no se cumplen las metas' }
+          if ($filas | Where-Object { -not $_.Ok }) { throw 'no se cumplen las metas' }
       - name: Captura para el registro
         if: always()
         run: |

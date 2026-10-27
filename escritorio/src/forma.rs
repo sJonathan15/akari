@@ -26,6 +26,29 @@ pub struct Medidas {
   pub teclado: bool,
   #[serde(default)]
   pub titulo: String,
+  #[serde(default)]
+  pub icono: String,
+  /// las piezas del grupo (AGENTS.md: Equipo, IA, Archivos), cada una con su chip en la píldora
+  #[serde(default)]
+  pub piezas: Vec<Pieza>,
+  /// qué cargar en ?vista=burbuja&c=…: el grupo, o su primera pieza si la web aún no tiene grupos
+  #[serde(default)]
+  pub pagina: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Pieza {
+  pub nombre: String,
+  #[serde(default)]
+  pub titulo: String,
+  #[serde(default)]
+  pub icono: String,
+  /// ancho lógico de su chip en la píldora cerrada
+  #[serde(default = "chip")]
+  pub ancho: f64,
+}
+fn chip() -> f64 {
+  28.0
 }
 fn derecha() -> String {
   "derecha".into()
@@ -43,9 +66,9 @@ fn alto_maximo() -> f64 {
   640.0
 }
 
-/// Las tres de siempre, por si el servicio es de una versión sin /api/burbujas.
+/// Los tres grupos con su pieza principal, por si el servicio es de una versión sin /api/burbujas.
 pub fn de_fabrica() -> Vec<Medidas> {
-  let m = |nombre: &str, lado: &str, hueco, cerrado, abierto, maximo, teclado| Medidas {
+  let m = |nombre: &str, pieza: &str, lado: &str, hueco, cerrado: f64, abierto, maximo, teclado| Medidas {
     nombre: nombre.into(),
     lado: lado.into(),
     hueco,
@@ -54,11 +77,19 @@ pub fn de_fabrica() -> Vec<Medidas> {
     alto_maximo: maximo,
     teclado,
     titulo: nombre.into(),
+    icono: String::new(),
+    piezas: vec![Pieza {
+      nombre: pieza.into(),
+      titulo: nombre.into(),
+      icono: String::new(),
+      ancho: cerrado - 28.0,
+    }],
+    pagina: pieza.into(),
   };
   vec![
-    m("dispositivos", "izquierda", 8.0, 262.0, 384.0, 700.0, false),
-    m("ia", "derecha", 8.0, 262.0, 360.0, 760.0, true),
-    m("habilidades", "derecha", 380.0, 136.0, 380.0, 640.0, false),
+    m("equipo", "dispositivos", "izquierda", 8.0, 260.0, 384.0, 700.0, false),
+    m("ia", "ia", "derecha", 8.0, 234.0, 360.0, 760.0, true),
+    m("archivos", "documentos", "derecha", 404.0, 178.0, 380.0, 760.0, false),
   ]
 }
 
@@ -311,12 +342,12 @@ mod pruebas {
       Rect {
         x: 968.0,
         y: 0.0,
-        w: 262.0,
+        w: 234.0,
         h: ALTO
       }
     );
     let d = Burbuja::new(de_fabrica().remove(0), None);
-    assert_eq!(d.limites(1920.0, 1040.0).x, 960.0 - 8.0 - 262.0);
+    assert_eq!(d.limites(1920.0, 1040.0).x, 960.0 - 8.0 - 260.0);
   }
 
   #[test]
@@ -344,7 +375,7 @@ mod pruebas {
     b.abierta = true;
     b.alto_cuerpo = 100.0;
     assert!(!b.hacia_derecha(1920.0));
-    assert_eq!(b.limites(1920.0, 1040.0).x, 1700.0 + 262.0 - 360.0);
+    assert_eq!(b.limites(1920.0, 1040.0).x, 1700.0 + 234.0 - 360.0);
   }
 
   #[test]
@@ -371,7 +402,7 @@ mod pruebas {
         x: 0.0,
         y: 280.0,
         w: ALTO,
-        h: 262.0
+        h: 234.0
       }
     );
     b.abierta = true;
@@ -380,7 +411,7 @@ mod pruebas {
       b.limites(1920.0, 1040.0),
       Rect {
         x: 0.0,
-        y: 280.0 + 131.0 - 310.0,
+        y: 280.0 + 117.0 - 310.0,
         w: ALTO + 360.0,
         h: 620.0
       }
@@ -406,7 +437,7 @@ mod pruebas {
     let b = ia();
     let f = b.forma(1920.0, 1040.0, true);
     assert_eq!(f["pegadaArriba"], true);
-    assert_eq!(f["cerrada"]["w"], 262.0);
+    assert_eq!(f["cerrada"]["w"], 234.0);
     assert_eq!(f["haciaDerecha"], true);
   }
 

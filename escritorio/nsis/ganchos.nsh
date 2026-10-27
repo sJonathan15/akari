@@ -20,6 +20,9 @@
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
+  ; Python deja sus .pyc junto al servicio al usarlo: esa carpeta es solo nuestra
+  RMDir /r "$INSTDIR\servicio"
+  RMDir "$INSTDIR"
   ; la caché de WebView2 se regenera sola; los ajustes de akari (%APPDATA%\akari) se quedan
   ${If} $UpdateMode <> 1
     RMDir /r "$LOCALAPPDATA\${BUNDLEID}"
