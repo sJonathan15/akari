@@ -390,6 +390,7 @@ function crearBandeja() {
       click: (i) => { guardarAjustes({ burbujas: i.checked }); burbujas.forEach((b) => b.mostrar(i.checked)); },
     },
     { label: t("Devolver las burbujas a su sitio", "Put the bubbles back in place"), click: () => burbujas.forEach((b) => b.fabrica()) },
+    { label: t("Ver recorrido", "Show the tour"), click: verRecorrido },
     { label: t("Iniciar con la sesión", "Start on login"), type: "checkbox", checked: autoarranqueActivo(), click: (i) => autoarranque(i.checked) },
     {
       label: t("Conectar con Claude Code (límites)", "Connect to Claude Code (limits)"), type: "checkbox", checked: claudeConectado(),
@@ -404,6 +405,13 @@ function crearBandeja() {
 }
 
 ipcMain.on("alternar-panel", alternarPanel);
+
+// recorrido de bienvenida otra vez: el servicio lo reinicia y cada burbuja abre la suya
+function verRecorrido() {
+  const req = http.request(URL + "api/recorrido", { method: "POST", headers: { "Content-Type": "application/json" } });
+  req.on("error", () => {});
+  req.end(JSON.stringify({ accion: "reiniciar" }));
+}
 
 // versión nueva (la anuncia el servicio): aviso «Hay una versión nueva» y, desde el panel, el botón
 function avisarServicio(accion) {

@@ -21,7 +21,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import acciones
+from . import acciones, cerebro, memoria
 from .comun import CONFIG, HOME, IDIOMA, SIN_VENTANA, WINDOWS, buscar, entorno_completo, escribir_json, leer_json, t, terminal
 from .modelos import OLLAMA, PROVEEDORES, ErrorIA, _cabeceras, _error, _pedir, preguntar
 
@@ -32,6 +32,7 @@ MAX_VUELTAS = 5                 # llamadas al modelo por pregunta
 CONTEXTO = 30 * 60              # se le pasan al modelo las preguntas de la última media hora
 RESUMIR_CLAUDE = 10 * 60        # --resume si la última pregunta a Claude fue hace menos de esto
 OCULTAR = 0.8                   # segundos que se esconden las cápsulas antes de la captura
+REGISTRAR = 5 * 60              # la charla va a la bitácora del cerebro tras estos segundos sin preguntas
 LECTURA_CLAUDE = "Read,Glob,Grep,LS,WebSearch,WebFetch"
 DIAS = {"es": ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"),
         "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")}[IDIOMA]
@@ -67,7 +68,14 @@ HERRAMIENTAS = [
     _h("buscar_notas", "Busca en las notas del usuario (Markdown, p. ej. Obsidian).", {"consulta": TEXTO}, ["consulta"]),
     _h("leer_nota", "Lee una nota de la carpeta de notas (ruta relativa a esa carpeta).", {"ruta": TEXTO}, ["ruta"]),
 ]
+# las del cerebro, solo si el usuario ya lo creó («anotar» ya la tiene el asistente, en su carpeta de notas)
+DEL_CEREBRO = {h["nombre"]: {"name": h["nombre"], "description": h["descripcion"], "parameters": h["parametros"]}
+               for h in cerebro.HERRAMIENTAS if h["nombre"] != "anotar"}
 FINALES = {"mirar_pantalla", "mirar_camara", "generar_imagen"}     # su resultado es la respuesta
+
+
+def herramientas():
+    return HERRAMIENTAS + (list(DEL_CEREBRO.values()) if cerebro.configurado() else [])
 CAMARA = re.compile(r"c[aá]mara|camera|webcam|foto|photo|selfie", re.I)
 
 # ---------------------------------------------------------------- atajos (0 tokens)
@@ -218,6 +226,7 @@ class Asistente:
         if not isinstance(self.historial, list):
             self.historial = []
         self.claude = leer_json(CONFIG / "asistente-claude.json")      # {"sesion", "t"}
+        self._registro = None           # threading.Timer que manda la charla al cerebro
 
     # ------------------------------------------------------------ ajustes y estado
     def ajustes(self):
@@ -328,8 +337,37 @@ class Asistente:
             self.pensando = False
             self.ocultar = False
         self._anotar(entrada)
+        self._registrar_luego()
         if a["voz_alta"] and self.voz and entrada["respuesta"]:
             self.voz.decir(entrada["respuesta"])
+
+    def _registrar_luego(self):
+        if self._registro:
+            self._registro.cancel()
+        self._registro = threading.Timer(REGISTRAR, self._registrar)
+        self._registro.daemon = True
+        self._registro.start()
+
+    def _registrar(self):
+        """La charla de ahora (preguntas con menos de CONTEXTO entre una y otra) como una sesión del cerebro."""
+        if not cerebro.configurado():
+            return
+        with self.lock:
+            charla = []
+            for h in self.historial:
+                if charla and charla[-1]["t"] - h["t"] > CONTEXTO:
+                    break
+                charla.append(h)
+        charla = [h for h in reversed(charla) if not h.get("error")]
+        if not charla:
+            return
+        mensajes = []
+        for h in charla:
+            mensajes += [{"rol": "usuario", "texto": h["pregunta"]}, {"rol": "asistente", "texto": h["respuesta"]}]
+        try:        # mismo id mientras dure la charla: se reemplaza, no se repite
+            memoria.registrar_asistente(int(charla[0]["t"]), mensajes, monitor_modelos=self.modelos)
+        except Exception:       # noqa: BLE001 — la bitácora no tumba al asistente
+            pass
 
     # ------------------------------------------------------------ caminos
     def _terminal(self, texto, quien):
@@ -380,11 +418,13 @@ class Asistente:
             f"frases) y sin tablas. Ahora es {DIAS[ahora.weekday()]} {ahora:%d/%m/%Y}, {ahora:%H:%M} (hora del equipo): "
             "usa esta hora, nunca otra. Usa las herramientas cuando hagan falta y nunca inventes lo que devolverían; si "
             "algo no se puede, dilo. "
-            + ("La carpeta de notas está elegida." if a["notas"] else "Todavía no hay carpeta de notas elegida."),
+            + ("La carpeta de notas está elegida." if a["notas"] else "Todavía no hay carpeta de notas elegida.")
+            + (" Para encontrar archivos del usuario usa buscar_archivo antes que listar carpetas." if cerebro.configurado() else ""),
             f"You are akari, a desktop assistant on {'Windows' if WINDOWS else 'Linux'}. Answer in English, briefly (1-3 "
             f"sentences), no tables. It is now {DIAS[ahora.weekday()]} {ahora:%Y-%m-%d}, {ahora:%H:%M} (computer time): use "
             "this time, never another. Use the tools when needed and never make up what they would return; if something "
-            "can't be done, say so. " + ("A notes folder is set." if a["notas"] else "No notes folder is set yet."))
+            "can't be done, say so. " + ("A notes folder is set." if a["notas"] else "No notes folder is set yet.")
+            + (" To find the user's files use buscar_archivo before listing folders." if cerebro.configurado() else ""))
 
     def _contexto(self, camino):
         """Las preguntas recientes (para que entienda «y la otra», «ábrela»…)."""
@@ -401,7 +441,7 @@ class Asistente:
         mensajes = self._contexto(camino) + [mensaje_usuario(camino, texto)]
         usadas = []
         for _ in range(MAX_VUELTAS):
-            respuesta, llamadas, crudo = llamar_modelo(self.modelos, self.sistema(a), mensajes, HERRAMIENTAS)
+            respuesta, llamadas, crudo = llamar_modelo(self.modelos, self.sistema(a), mensajes, herramientas())
             if not llamadas:
                 return respuesta or t("No sé qué responder.", "I don't know what to say."), usadas
             mensajes.append(crudo)
@@ -450,6 +490,8 @@ class Asistente:
             return self.mirar_camara(texto("pregunta") or pregunta), True
         if nombre == "generar_imagen":
             return generar_imagen(self.modelos, texto("descripcion") or pregunta), True
+        if nombre in DEL_CEREBRO:
+            return cerebro.usar_herramienta(nombre, args, self.modelos), False
         return "?", False
 
     def _ver(self, imagen, pregunta, que):

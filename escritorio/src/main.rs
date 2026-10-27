@@ -674,6 +674,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
     true,
     None::<&str>,
   )?;
+  let recorrido = MenuItem::with_id(app, "recorrido", t("Ver recorrido", "Show the tour"), true, None::<&str>)?;
   #[cfg(windows)]
   let auto = sistema::autoarranque();
   #[cfg(not(windows))]
@@ -701,6 +702,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
       &panel,
       &ver,
       &sitio,
+      &recorrido,
       &inicio,
       &claude,
       &PredefinedMenuItem::separator(app)?,
@@ -725,6 +727,12 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         mostrar_todas(app, si);
       }
       "sitio" => todas_a_su_sitio(app),
+      "recorrido" => {
+        // el servicio lo reinicia; la burbuja de cada paso se abre sola (web/app.js)
+        std::thread::spawn(|| {
+          let _ = servicio::pedir("POST", "/api/recorrido", Some(r#"{"accion": "reiniciar"}"#));
+        });
+      }
       "inicio" => {
         #[cfg(windows)]
         sistema::poner_autoarranque(inicio2.is_checked().unwrap_or(false));

@@ -190,5 +190,32 @@ class Limites(unittest.TestCase):
         self.assertEqual((Path(boveda) / "Recetas.md").read_text(encoding="utf-8").count("harina"), 1)   # la nota del usuario no se toca
 
 
+class ConCerebro(unittest.TestCase):
+    def test_herramientas_solo_con_cerebro(self):
+        with mock.patch.object(asistente.cerebro, "configurado", return_value=False):
+            self.assertNotIn("buscar_archivo", [h["name"] for h in asistente.herramientas()])
+        with mock.patch.object(asistente.cerebro, "configurado", return_value=True):
+            nombres = [h["name"] for h in asistente.herramientas()]
+            self.assertIn("buscar_archivo", nombres)
+            self.assertEqual(nombres.count("anotar"), 1)
+            a = nuevo("ollama")
+            with mock.patch.object(asistente.cerebro, "usar_herramienta", return_value="~/tesis.docx") as usar:
+                self.assertEqual(a.ejecutar("buscar_archivo", {"consulta": "tesis"}, "¿dónde está mi tesis?", AJ),
+                                 ("~/tesis.docx", False))
+                usar.assert_called_once_with("buscar_archivo", {"consulta": "tesis"}, a.modelos)
+
+    def test_charla_a_la_bitacora(self):
+        a = nuevo("ollama")
+        a.historial = [{"t": 5000, "pregunta": "y la otra?", "respuesta": "Abrí la segunda.", "error": False},
+                       {"t": 4000, "pregunta": "busca mis tesis", "respuesta": "Hay dos.", "error": False},
+                       {"t": 100, "pregunta": "de otra charla", "respuesta": "…", "error": False}]
+        with mock.patch.object(asistente.cerebro, "configurado", return_value=True), \
+                mock.patch.object(asistente.memoria, "registrar_asistente") as registrar:
+            a._registrar()
+        ident, mensajes = registrar.call_args[0]
+        self.assertEqual(ident, 4000)
+        self.assertEqual([m["texto"] for m in mensajes if m["rol"] == "usuario"], ["busca mis tesis", "y la otra?"])
+
+
 if __name__ == "__main__":
     unittest.main()
